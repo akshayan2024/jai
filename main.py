@@ -1,34 +1,28 @@
+"""
+JAI - Jyotish Astrological Interpretation API
+Simple entry point with absolute imports for deployment
+"""
+
+import os
 import logging
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional
+from enum import Enum
 
-from routes import health
-from routes.v1 import ascendant, natal_chart, divisional_chart, mahadasha, nakshatra, aspect, yoga
-from utils.error_handlers import custom_exception_handler
-from utils.logger import setup_logging
-from constants import load_all_constants
+# Create logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("jai-api")
 
-# Initialize logging
-logger = setup_logging()
-
-# Create FastAPI application
+# Create FastAPI app
 app = FastAPI(
     title="JAI Astrological API",
-    description="""
-    API for Vedic astrological calculations based on the Swiss Ephemeris.
-    
-    ## Features
-    
-    * Ascendant calculation
-    * Natal chart (D1) with planet positions
-    * Divisional charts (D1, D2, D3, D4, D7, D9, D10, D12)
-    * Vimshottari Mahadasha with sub-periods (Antardasha) and sub-sub-periods (Pratyantardasha)
-    * Nakshatra calculations
-    * Planetary aspects
-    * Yoga (planetary combinations) detection
-    """,
+    description="API for Vedic astrological calculations based on the Swiss Ephemeris.",
     version="1.0.0",
     docs_url="/v1/docs",
     redoc_url="/v1/redoc",
@@ -43,64 +37,68 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load constants at startup
+# Basic models
+class AyanamsaEnum(str, Enum):
+    LAHIRI = "lahiri"
+    RAMAN = "raman"
+    KRISHNAMURTI = "krishnamurti"
+
+class BirthDataRequest(BaseModel):
+    birth_date: str = Field(..., description="Date of birth in YYYY-MM-DD format")
+    birth_time: str = Field(..., description="Time of birth in HH:MM:SS format (24h)")
+    latitude: float = Field(..., description="Birth latitude (-90 to +90)")
+    longitude: float = Field(..., description="Birth longitude (-180 to +180)")
+    timezone_offset: float = Field(..., description="Time zone offset from UTC in hours")
+    ayanamsa: AyanamsaEnum = Field(AyanamsaEnum.LAHIRI, description="Ayanamsa method")
+
+# Health check
+@app.get("/v1/api/health", tags=["Health"])
+async def health_check():
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "environment": os.environ.get("ENVIRONMENT", "development")
+    }
+
+# Root endpoint
+@app.get("/", include_in_schema=False)
+async def root():
+    return {
+        "message": "Welcome to JAI API - Jyotish Astrological Interpretation",
+        "documentation": "/v1/docs",
+        "status": "online"
+    }
+
+# Example endpoint
+@app.post("/v1/api/ascendant", tags=["Example"])
+async def get_ascendant_example(request: BirthDataRequest):
+    """
+    This is a simplified example endpoint for testing deployment.
+    In the full version, this would calculate the ascendant based on birth data.
+    """
+    return {
+        "ascendant_degree": 123.456,
+        "ascendant_sign": 5,
+        "ascendant_sign_name": "Leo",
+        "birth_data": {
+            "date": request.birth_date,
+            "time": request.birth_time,
+            "latitude": request.latitude,
+            "longitude": request.longitude,
+        }
+    }
+
+# Startup event
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up JAI API")
-    load_all_constants()
-    # Initialize ephemeris
-    from services.ephemeris_service import init_ephemeris
-    init_ephemeris()
-    logger.info("Constants loaded and ephemeris initialized successfully")
-
+    
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("JAI API shutting down")
-    # Close ephemeris
-    from services.ephemeris_service import close_ephemeris
-    close_ephemeris()
-
-# Add exception handlers
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return await custom_exception_handler(request, exc)
-
-# Include routers
-app.include_router(health.router)
-app.include_router(
-    ascendant.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    natal_chart.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    divisional_chart.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    mahadasha.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    nakshatra.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    aspect.router,
-    prefix="/v1/api",
-)
-app.include_router(
-    yoga.router,
-    prefix="/v1/api",
-)
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return {"message": "Welcome to JAI API. Visit /v1/docs for documentation."}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
