@@ -99,6 +99,25 @@ async def get_horoscope(request: BirthDataRequest):
     # Log request
     logger.info(f"Horoscope request received for birth date: {request.birth_date}")
     
+    # Generate horoscope data
+    return generate_horoscope_response(request)
+
+# Alternate pattern for the horoscope endpoint (/api/v1/... instead of /v1/api/...)
+@app.post("/api/v1/horoscope", tags=["Horoscope"], include_in_schema=False)
+async def get_horoscope_alt(request: BirthDataRequest):
+    """
+    Alternative URL pattern for the horoscope endpoint.
+    Some clients may expect /api/v1/... instead of /v1/api/...
+    """
+    # Log request with note about alternate endpoint
+    logger.info(f"Horoscope request received at alternate endpoint for birth date: {request.birth_date}")
+    
+    # Use the same response generation as the primary endpoint
+    return generate_horoscope_response(request)
+
+# Helper function to generate horoscope response (used by both endpoints)
+def generate_horoscope_response(request: BirthDataRequest):
+    """Generate a horoscope response based on the request data."""
     # Mock planetary positions
     planets = [
         {"planet": "Sun", "longitude": 105.23, "sign_index": 4, "sign_name": "Leo", "house": 5, "is_retrograde": False},
