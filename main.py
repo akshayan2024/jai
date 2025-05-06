@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from enum import Enum
+from datetime import datetime, timedelta
 
 # Create logger
 logging.basicConfig(
@@ -86,6 +87,71 @@ async def get_ascendant_example(request: BirthDataRequest):
             "latitude": request.latitude,
             "longitude": request.longitude,
         }
+    }
+
+# Horoscope endpoint
+@app.post("/v1/api/horoscope", tags=["Horoscope"])
+async def get_horoscope(request: BirthDataRequest):
+    """
+    Generate a Vedic horoscope based on birth data.
+    This is a simplified implementation for testing deployment.
+    """
+    # Log request
+    logger.info(f"Horoscope request received for birth date: {request.birth_date}")
+    
+    # Mock planetary positions
+    planets = [
+        {"planet": "Sun", "longitude": 105.23, "sign_index": 4, "sign_name": "Leo", "house": 5, "is_retrograde": False},
+        {"planet": "Moon", "longitude": 78.45, "sign_index": 3, "sign_name": "Cancer", "house": 4, "is_retrograde": False},
+        {"planet": "Mars", "longitude": 32.18, "sign_index": 2, "sign_name": "Taurus", "house": 2, "is_retrograde": False},
+        {"planet": "Mercury", "longitude": 95.67, "sign_index": 4, "sign_name": "Leo", "house": 5, "is_retrograde": True},
+        {"planet": "Jupiter", "longitude": 210.34, "sign_index": 8, "sign_name": "Scorpio", "house": 8, "is_retrograde": False},
+        {"planet": "Venus", "longitude": 150.78, "sign_index": 6, "sign_name": "Virgo", "house": 6, "is_retrograde": False},
+        {"planet": "Saturn", "longitude": 280.12, "sign_index": 10, "sign_name": "Capricorn", "house": 10, "is_retrograde": True},
+        {"planet": "Rahu", "longitude": 55.89, "sign_index": 2, "sign_name": "Taurus", "house": 2, "is_retrograde": False},
+        {"planet": "Ketu", "longitude": 235.89, "sign_index": 8, "sign_name": "Scorpio", "house": 8, "is_retrograde": False}
+    ]
+    
+    # Mock ascendant info
+    ascendant = {
+        "ascendant_degree": 45.67,
+        "ascendant_sign": 2,
+        "ascendant_sign_name": "Taurus"
+    }
+    
+    # Mock dasha periods
+    birth_date_obj = datetime.strptime(request.birth_date, "%Y-%m-%d")
+    current_date = datetime.now().date()
+    
+    mahadasha = [
+        {
+            "planet": "Saturn",
+            "start_date": (birth_date_obj).strftime("%Y-%m-%d"),
+            "end_date": (birth_date_obj + timedelta(days=365*19)).strftime("%Y-%m-%d"),
+            "years": 19
+        },
+        {
+            "planet": "Mercury",
+            "start_date": (birth_date_obj + timedelta(days=365*19)).strftime("%Y-%m-%d"),
+            "end_date": (birth_date_obj + timedelta(days=365*(19+17))).strftime("%Y-%m-%d"),
+            "years": 17
+        }
+    ]
+    
+    # Return a simulated horoscope
+    return {
+        "birth_data": {
+            "date": request.birth_date,
+            "time": request.birth_time,
+            "latitude": request.latitude,
+            "longitude": request.longitude,
+            "timezone_offset": request.timezone_offset,
+            "ayanamsa": request.ayanamsa
+        },
+        "ascendant": ascendant,
+        "planets": planets,
+        "mahadasha": mahadasha,
+        "generated_at": datetime.now().isoformat()
     }
 
 # Startup event

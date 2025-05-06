@@ -1,0 +1,357 @@
+openapi: 3.1.0
+info:
+  title: Astrology API
+  description: API for calculating ascendants, natal charts, divisional charts, mahadasha periods, nakshatra positions,
+    planetary aspects, and yogas.
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+    description: Production server
+paths:
+  /:
+    get:
+      operationId: getRoot
+      summary: Get welcome message
+      responses:
+        "200":
+          description: Welcome message
+          content:
+            text/plain:
+              schema:
+                type: string
+  /v1/api/health:
+    get:
+      operationId: getHealth
+      summary: Health check endpoint
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /v1/api/ascendant:
+    post:
+      operationId: calculateAscendant
+      summary: Calculate ascendant based on birth data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Ascendant calculation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ascendant:
+                    type: string
+  /v1/api/natal_chart:
+    post:
+      operationId: generateNatalChart
+      summary: Generate a complete natal chart with planet positions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Natal chart result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  planets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        planet:
+                          type: string
+                        position:
+                          type: string
+  /v1/api/divisional_chart:
+    post:
+      operationId: calculateDivisionalChart
+      summary: Calculate divisional chart (D1-D12)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chartType:
+                  type: string
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Divisional chart result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chartData:
+                    type: object
+  /v1/api/divisional_chart/supported-charts:
+    get:
+      operationId: getSupportedDivisionalCharts
+      summary: List supported divisional charts
+      responses:
+        "200":
+          description: Supported divisional charts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /v1/api/mahadasha:
+    post:
+      operationId: calculateMahadasha
+      summary: Calculate Vimshottari Mahadasha periods
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Mahadasha result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  periods:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dasha:
+                          type: string
+                        start:
+                          type: string
+                          format: date
+                        end:
+                          type: string
+                          format: date
+  /v1/api/mahadasha/supported-levels:
+    get:
+      operationId: getSupportedMahadashaLevels
+      summary: List supported dasha levels
+      responses:
+        "200":
+          description: Supported dasha levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /v1/api/nakshatra:
+    post:
+      operationId: getNakshatraPositions
+      summary: Get nakshatra positions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Nakshatra positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    nakshatra:
+                      type: string
+                    position:
+                      type: string
+  /v1/api/nakshatra/list:
+    get:
+      operationId: listNakshatras
+      summary: List all nakshatras
+      responses:
+        "200":
+          description: List of nakshatras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /v1/api/aspect:
+    post:
+      operationId: calculateAspect
+      summary: Calculate planetary aspects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Aspect result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aspects:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fromPlanet:
+                          type: string
+                        toPlanet:
+                          type: string
+                        aspectType:
+                          type: string
+  /v1/api/aspect/rules:
+    get:
+      operationId: getAspectRules
+      summary: Get aspect calculation rules
+      responses:
+        "200":
+          description: Aspect calculation rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+  /v1/api/yoga:
+    post:
+      operationId: detectYoga
+      summary: Detect yogas (astrological combinations)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateOfBirth:
+                  type: string
+                  format: date
+                timeOfBirth:
+                  type: string
+                  pattern: ^([01]?[0-9]|2[0-3]):[0-5][0-9]$
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        "200":
+          description: Detected yogas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /v1/api/yoga/supported:
+    get:
+      operationId: getSupportedYogas
+      summary: List supported yogas
+      responses:
+        "200":
+          description: Supported yogas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
