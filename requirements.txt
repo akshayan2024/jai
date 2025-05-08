@@ -1,10 +1,17 @@
-# Base dependencies
-fastapi==0.95.1
-uvicorn==0.22.0
-pydantic==1.10.7
+# Core dependencies
+fastapi==0.104.0
+uvicorn==0.23.2
+pydantic==2.4.2
+requests==2.31.0
+typing-extensions==4.8.0
 python-dotenv==1.0.0
-pyswisseph==2.10.3.2
 python-multipart==0.0.6
+pyswisseph==2.10.3.2  # Python wrapper for Swiss Ephemeris
+
+# Testing
+pytest==7.4.2
+httpx==0.25.0
+requests-mock==1.11.0
 
 # Production dependencies
 gunicorn==20.1.0 
