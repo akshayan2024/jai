@@ -6,6 +6,8 @@ WORKDIR /app
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -23,11 +25,17 @@ WORKDIR /app
 # Install runtime dependencies for Swiss Ephemeris
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    python3-dev \
+    gcc \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy wheels from builder stage
 COPY --from=builder /app/wheels /app/wheels
 RUN pip install --no-cache-dir /app/wheels/*
+
+# Install pyswisseph directly
+RUN pip install --no-cache-dir pyswisseph==2.10.3.2
 
 # Copy application code
 COPY . .

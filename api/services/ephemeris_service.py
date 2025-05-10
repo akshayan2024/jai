@@ -23,15 +23,23 @@ class EphemerisService:
         """
         # Set ephemeris path from environment or use default
         ephemeris_path = os.environ.get("EPHEMERIS_PATH", "./ephemeris")
+        if not os.path.exists(ephemeris_path):
+            raise RuntimeError(f"Ephemeris path does not exist: {ephemeris_path}")
+        
+        # Set ephemeris path
         swe.set_ephe_path(ephemeris_path)
+        logger.info(f"Set ephemeris path to {ephemeris_path}")
         
         # Set sidereal mode
         swe.set_sid_mode(ayanamsa)
+        logger.info(f"Set sidereal mode to {ayanamsa} (Lahiri)")
         
         # Verify initialization
         try:
             test_jd = swe.julday(2000, 1, 1, 0)
-            _ = swe.calc_ut(test_jd, swe.SUN)
+            xx, ret = swe.calc_ut(test_jd, swe.SUN)
+            if ret < 0:
+                raise RuntimeError(f"Swiss Ephemeris test calculation failed with error code {ret}")
             logger.info("Swiss Ephemeris initialized successfully")
         except Exception as e:
             logger.error(f"Failed to verify Swiss Ephemeris: {str(e)}")
@@ -47,17 +55,23 @@ class EphemerisService:
             
         Returns:
             Dictionary containing longitude, latitude, distance, and speed
+            
+        Raises:
+            RuntimeError: If the calculation fails
         """
         try:
             # Use FLG_SIDEREAL for sidereal positions
             flag = swe.FLG_SIDEREAL | swe.FLG_SWIEPH
-            result = swe.calc_ut(jd, planet, flag)
+            xx, ret = swe.calc_ut(jd, planet, flag)
+            
+            if ret < 0:
+                raise RuntimeError(f"Planet calculation failed with error code {ret}")
             
             return {
-                "longitude": result[0],
-                "latitude": result[1],
-                "distance": result[2],
-                "speed": result[3]
+                "longitude": xx[0],
+                "latitude": xx[1],
+                "distance": xx[2],
+                "speed": xx[3]
             }
         except Exception as e:
             logger.error(f"Error calculating planet position: {str(e)}")
@@ -74,10 +88,15 @@ class EphemerisService:
             
         Returns:
             Tuple of (ascendant longitude, house cusps)
+            
+        Raises:
+            RuntimeError: If the calculation fails
         """
         try:
             # Use Whole Sign house system
-            cusps, ascmc = swe.houses_ex(jd, lat, lon, b'W')
+            cusps, ascmc, ret = swe.houses_ex(jd, lat, lon, b'W')
+            if ret < 0:
+                raise RuntimeError(f"House calculation failed with error code {ret}")
             return ascmc[0], cusps
         except Exception as e:
             logger.error(f"Error calculating ascendant: {str(e)}")
