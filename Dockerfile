@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements/prod.txt .
-RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r prod.txt
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
 # Final stage
 FROM python:3.9-slim
@@ -32,8 +32,12 @@ RUN pip install --no-cache-dir /app/wheels/*
 # Copy application code
 COPY . .
 
-# Create ephemeris directory
+# Create ephemeris directory and ensure it exists
 RUN mkdir -p /app/ephemeris
+
+# Copy ephemeris files from local directory
+# The files should be downloaded first using download_ephemeris.sh
+COPY ./ephemeris/* /app/ephemeris/
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
@@ -45,4 +49,4 @@ USER appuser
 EXPOSE 8000
 
 # Start application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8000"] 

@@ -28,9 +28,7 @@ TEST_CASES = [
         "birth_data": {
             "birth_date": "1869-10-02",
             "birth_time": "07:15:00",
-            "latitude": 21.6419,
-            "longitude": 69.6293,
-            "timezone_offset": 5.5,
+            "place": "Porbandar, Gujarat, India",
             "ayanamsa": "lahiri"
         },
         "expected": {
@@ -56,9 +54,7 @@ TEST_CASES = [
         "birth_data": {
             "birth_date": "1879-03-14",
             "birth_time": "11:30:00",
-            "latitude": 48.4000,
-            "longitude": 9.9833,
-            "timezone_offset": 1.0,
+            "place": "Ulm, Germany",
             "ayanamsa": "lahiri"
         },
         "expected": {
@@ -84,9 +80,7 @@ TEST_CASES = [
         "birth_data": {
             "birth_date": "1988-12-01",
             "birth_time": "21:47:00",
-            "latitude": CHENNAI_LATITUDE,
-            "longitude": CHENNAI_LONGITUDE,
-            "timezone_offset": CHENNAI_TIMEZONE,
+            "place": "Chennai, India",
             "ayanamsa": "lahiri"
         },
         "expected": {
@@ -272,7 +266,16 @@ def test_timezone_effects():
 
 def test_valid_horoscope_request():
     """Test a valid horoscope request"""
-    payload = {
+    # Test with place-based input (preferred method)
+    place_payload = {
+        "birth_date": "1990-01-01",
+        "birth_time": "12:00:00",
+        "place": "New Delhi, India",
+        "ayanamsa": "lahiri"
+    }
+    
+    # Test with coordinate-based input (alternative method)
+    coordinate_payload = {
         "birth_date": "1990-01-01",
         "birth_time": "12:00:00",
         "latitude": 28.6139,
@@ -281,11 +284,12 @@ def test_valid_horoscope_request():
         "ayanamsa": "lahiri"
     }
     
-    # Test both API paths
+    # Test both methods with both API paths
     for path in ["/v1/api/horoscope", "/api/v1/horoscope"]:
+        # Test place-based method
         response = requests.post(
             f"{BASE_URL}{path}",
-            json=payload,
+            json=place_payload,
             timeout=TEST_TIMEOUT
         )
         assert response.status_code == 200
@@ -299,12 +303,29 @@ def test_valid_horoscope_request():
         assert "generated_at" in data
         
         # Verify birth data
-        assert data["birth_data"]["date"] == payload["birth_date"]
-        assert data["birth_data"]["time"] == payload["birth_time"]
-        assert data["birth_data"]["latitude"] == payload["latitude"]
-        assert data["birth_data"]["longitude"] == payload["longitude"]
-        assert data["birth_data"]["timezone_offset"] == payload["timezone_offset"]
-        assert data["birth_data"]["ayanamsa"] == payload["ayanamsa"]
+        assert data["birth_data"]["date"] == place_payload["birth_date"]
+        assert data["birth_data"]["time"] == place_payload["birth_time"]
+        assert "latitude" in data["birth_data"]
+        assert "longitude" in data["birth_data"]
+        assert "timezone_offset" in data["birth_data"]
+        assert data["birth_data"]["ayanamsa"] == place_payload["ayanamsa"]
+        
+        # Test coordinate-based method
+        response = requests.post(
+            f"{BASE_URL}{path}",
+            json=coordinate_payload,
+            timeout=TEST_TIMEOUT
+        )
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify coordinate method works too
+        assert data["birth_data"]["date"] == coordinate_payload["birth_date"]
+        assert data["birth_data"]["time"] == coordinate_payload["birth_time"]
+        assert data["birth_data"]["latitude"] == coordinate_payload["latitude"]
+        assert data["birth_data"]["longitude"] == coordinate_payload["longitude"]
+        assert data["birth_data"]["timezone_offset"] == coordinate_payload["timezone_offset"]
+        assert data["birth_data"]["ayanamsa"] == coordinate_payload["ayanamsa"]
 
 def test_alternative_field_names():
     """Test horoscope request with alternative field names"""
@@ -481,6 +502,50 @@ def test_missing_required_fields():
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
+
+def test_place_based_geocoding():
+    """Test horoscope request using place name instead of coordinates"""
+    # Test with various cities
+    test_cities = [
+        {"place": "Chennai, India", "expected_lat": 13.0827, "expected_lon": 80.2707},
+        {"place": "New York, USA", "expected_lat": 40.7128, "expected_lon": -74.0060},
+        {"place": "London, UK", "expected_lat": 51.5074, "expected_lon": -0.1278},
+        {"place": "Tokyo, Japan", "expected_lat": 35.6762, "expected_lon": 139.6503},
+        {"place": "Sydney, Australia", "expected_lat": -33.8688, "expected_lon": 151.2093}
+    ]
+    
+    for city in test_cities:
+        payload = {
+            "birth_date": "1990-01-01",
+            "birth_time": "12:00:00",
+            "place": city["place"],
+            "ayanamsa": "lahiri"
+        }
+        
+        response = requests.post(
+            f"{BASE_URL}/v1/api/horoscope",
+            json=payload,
+            timeout=TEST_TIMEOUT
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify that coordinates were determined automatically
+        birth_data = data["birth_data"]
+        assert "latitude" in birth_data
+        assert "longitude" in birth_data
+        
+        # Coordinates should be approximately correct (within 0.5 degrees)
+        assert math.isclose(birth_data["latitude"], city["expected_lat"], abs_tol=0.5)
+        assert math.isclose(birth_data["longitude"], city["expected_lon"], abs_tol=0.5)
+        
+        # Timezone should be calculated
+        assert "timezone_offset" in birth_data
+        
+        # Response should include horoscope data
+        assert "ascendant" in data
+        assert "planets" in data
 
 def test_chennai_birth_case():
     """Test specific horoscope calculations for Chennai birth case"""
