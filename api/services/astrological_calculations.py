@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 import swisseph as swe
+import logging
 from api.models.astrological import (
     Planet, Sign, PlanetPosition, HousePosition,
     BirthData, HoroscopeResponse, Yoga, DashaPeriod,
@@ -9,6 +10,12 @@ from api.models.astrological import (
 from api.services.yoga_calculations import YogaCalculator
 from api.services.dasha_calculations import DashaCalculator
 from api.services.aspect_calculations import AspectCalculator
+
+# Configure logging
+logger = logging.getLogger("jai-api.astrological")
+
+# Debug flag for development features
+DEBUG_MODE = False
 
 class AstrologicalCalculator:
     """Main calculator for astrological calculations"""
@@ -60,10 +67,15 @@ class AstrologicalCalculator:
                 # Calculate Rahu/Ketu (Lunar nodes)
                 result = swe.calc_ut(jd, swe.MEAN_NODE)
                 degree = result[0]
-                is_retrograde = result[3] < 0
+                # Both nodes are always retrograde in nature
+                is_retrograde = True
                 
                 if planet == Planet.KETU:
                     degree = (degree + 180) % 360
+                    # Ketu inherits Rahu's speed (both are retrograde)
+                    speed = result[3]  # Don't negate the speed
+                else:
+                    speed = result[3]
                 
                 sign_num = int(degree / 30) + 1
                 degree_in_sign = degree % 30
@@ -79,7 +91,11 @@ class AstrologicalCalculator:
                 planet_id = self._get_planet_id(planet)
                 result = swe.calc_ut(jd, planet_id)
                 degree = result[0]
-                is_retrograde = result[3] < 0
+                # Sun and Moon are never retrograde
+                if planet in [Planet.SUN, Planet.MOON]:
+                    is_retrograde = False
+                else:
+                    is_retrograde = result[3] < 0
                 
                 sign_num = int(degree / 30) + 1
                 degree_in_sign = degree % 30
@@ -141,6 +157,9 @@ class AstrologicalCalculator:
         
         # Calculate aspects
         aspects = self.calculate_aspects(planets)
+        
+        if DEBUG_MODE:
+            self._validate_chart(ascendant, planets, houses)
         
         return HoroscopeResponse(
             birth_data=birth_data,
@@ -212,4 +231,72 @@ class AstrologicalCalculator:
             Planet.VENUS: swe.VENUS,
             Planet.SATURN: swe.SATURN
         }
-        return planet_map[planet] 
+        return planet_map[planet]
+
+    def get_planet_dignity(self, planet: Planet, sign: Sign) -> str:
+        """Get planet's dignity in a sign"""
+        # Classical dignities for the seven planets
+        exaltation_signs = {
+            Planet.SUN: Sign.ARIES,
+            Planet.MOON: Sign.TAURUS,
+            Planet.MARS: Sign.CAPRICORN,
+            Planet.MERCURY: Sign.VIRGO,
+            Planet.JUPITER: Sign.CANCER,
+            Planet.VENUS: Sign.PISCES,
+            Planet.SATURN: Sign.LIBRA
+        }
+        
+        debilitation_signs = {
+            Planet.SUN: Sign.LIBRA,
+            Planet.MOON: Sign.SCORPIO,
+            Planet.MARS: Sign.CANCER,
+            Planet.MERCURY: Sign.PISCES,
+            Planet.JUPITER: Sign.CAPRICORN,
+            Planet.VENUS: Sign.VIRGO,
+            Planet.SATURN: Sign.ARIES
+        }
+        
+        own_signs = {
+            Planet.SUN: [Sign.LEO],
+            Planet.MOON: [Sign.CANCER],
+            Planet.MARS: [Sign.ARIES, Sign.SCORPIO],
+            Planet.MERCURY: [Sign.GEMINI, Sign.VIRGO],
+            Planet.JUPITER: [Sign.SAGITTARIUS, Sign.PISCES],
+            Planet.VENUS: [Sign.TAURUS, Sign.LIBRA],
+            Planet.SATURN: [Sign.CAPRICORN, Sign.AQUARIUS]
+        }
+        
+        # Handle Rahu/Ketu separately as they don't have classical dignities
+        if planet in [Planet.RAHU, Planet.KETU]:
+            return "Neutral"  # Classical texts don't assign dignities to nodes
+        
+        if sign == exaltation_signs.get(planet):
+            return "Exalted"
+        elif sign == debilitation_signs.get(planet):
+            return "Debilitated"
+        elif sign in own_signs.get(planet, []):
+            return "Own Sign"
+        else:
+            return "Neutral"
+
+    def _validate_chart(self, ascendant: HousePosition, planets: List[PlanetPosition], houses: List[HousePosition]):
+        """Internal validation for development/debugging only"""
+        if not DEBUG_MODE:
+            return
+            
+        # Validate house sequence
+        for i in range(12):
+            expected_sign = Sign((ascendant.sign.value + i - 1) % 12 + 1)
+            if houses[i].sign != expected_sign:
+                logger.warning(f"House {i+1} sign mismatch: expected {expected_sign}, got {houses[i].sign}")
+        
+        # Validate planet-house assignments
+        for planet in planets:
+            planet_longitude = planet.degree + (planet.sign.value - 1) * 30
+            ascendant_longitude = ascendant.degree + (ascendant.sign.value - 1) * 30
+            house_number = int((planet_longitude - ascendant_longitude) / 30) % 12 + 1
+            
+            if house_number < 1 or house_number > 12:
+                logger.warning(f"Invalid house number {house_number} for planet {planet.planet}")
+            elif planet not in houses[house_number-1].planets:
+                logger.warning(f"Planet {planet.planet} not assigned to house {house_number}") 

@@ -151,4 +151,153 @@ def test_get_aspects_between_planets():
     
     assert len(sun_moon_aspects) == 1
     assert sun_moon_aspects[0].planet1 in [Planet.SUN, Planet.MOON]
-    assert sun_moon_aspects[0].planet2 in [Planet.SUN, Planet.MOON] 
+    assert sun_moon_aspects[0].planet2 in [Planet.SUN, Planet.MOON]
+
+def test_aspect_calculator_initialization():
+    """Test that aspect calculator initializes correctly"""
+    calculator = AspectCalculator()
+    assert calculator is not None
+    assert hasattr(calculator, 'aspect_definitions')
+    assert len(calculator.aspect_definitions) > 0
+
+def test_conjunction_aspect():
+    """Test detection of conjunction aspect"""
+    calculator = AspectCalculator()
+    
+    # Create positions for a conjunction (planets in same sign)
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.ARIES, degree=15.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    conjunction = next((a for a in aspects if a.aspect_type == "Conjunction"), None)
+    
+    assert conjunction is not None
+    assert conjunction.planet1 == Planet.MARS
+    assert conjunction.planet2 == Planet.SATURN
+    assert conjunction.distance == 5.0
+    assert conjunction.strength > 0.0
+
+def test_opposition_aspect():
+    """Test detection of opposition aspect"""
+    calculator = AspectCalculator()
+    
+    # Create positions for an opposition (planets 180 degrees apart)
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.LIBRA, degree=10.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    opposition = next((a for a in aspects if a.aspect_type == "Opposition"), None)
+    
+    assert opposition is not None
+    assert opposition.planet1 == Planet.MARS
+    assert opposition.planet2 == Planet.SATURN
+    assert opposition.distance == 180.0
+    assert opposition.strength > 0.0
+
+def test_trine_aspect():
+    """Test detection of trine aspect"""
+    calculator = AspectCalculator()
+    
+    # Create positions for a trine (planets 120 degrees apart)
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.LEO, degree=10.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    trine = next((a for a in aspects if a.aspect_type == "Trine"), None)
+    
+    assert trine is not None
+    assert trine.planet1 == Planet.MARS
+    assert trine.planet2 == Planet.SATURN
+    assert trine.distance == 120.0
+    assert trine.strength > 0.0
+
+def test_square_aspect():
+    """Test detection of square aspect"""
+    calculator = AspectCalculator()
+    
+    # Create positions for a square (planets 90 degrees apart)
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.CANCER, degree=10.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    square = next((a for a in aspects if a.aspect_type == "Square"), None)
+    
+    assert square is not None
+    assert square.planet1 == Planet.MARS
+    assert square.planet2 == Planet.SATURN
+    assert square.distance == 90.0
+    assert square.strength > 0.0
+
+def test_sextile_aspect():
+    """Test detection of sextile aspect"""
+    calculator = AspectCalculator()
+    
+    # Create positions for a sextile (planets 60 degrees apart)
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.GEMINI, degree=10.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    sextile = next((a for a in aspects if a.aspect_type == "Sextile"), None)
+    
+    assert sextile is not None
+    assert sextile.planet1 == Planet.MARS
+    assert sextile.planet2 == Planet.SATURN
+    assert sextile.distance == 60.0
+    assert sextile.strength > 0.0
+
+def test_aspect_strength_calculation():
+    """Test that aspect strength is calculated correctly"""
+    calculator = AspectCalculator()
+    
+    # Create positions for a strong conjunction
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.ARIES, degree=10.5, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    conjunction = next((a for a in aspects if a.aspect_type == "Conjunction"), None)
+    
+    assert conjunction is not None
+    assert 0.0 < conjunction.strength <= 1.0
+    assert conjunction.strength > 0.9  # Very close conjunction should have high strength
+
+def test_no_aspect_detection():
+    """Test that no aspects are detected when planets are too far apart"""
+    calculator = AspectCalculator()
+    
+    # Create positions that don't form any aspects
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.VIRGO, degree=20.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    assert len(aspects) == 0
+
+def test_special_aspects():
+    """Test detection of special aspects for specific planets"""
+    calculator = AspectCalculator()
+    
+    # Test Jupiter's special aspects
+    positions = [
+        PlanetPosition(planet=Planet.JUPITER, sign=Sign.ARIES, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.MARS, sign=Sign.CANCER, degree=10.0, is_retrograde=False)
+    ]
+    
+    aspects = calculator.calculate_aspects(positions)
+    jupiter_aspect = next((a for a in aspects if a.planet1 == Planet.JUPITER), None)
+    
+    assert jupiter_aspect is not None
+    assert jupiter_aspect.aspect_type == "Jupiter Special"
+    assert jupiter_aspect.strength > 0.0 

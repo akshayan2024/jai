@@ -6,12 +6,16 @@ import math
 import random
 from datetime import datetime
 import logging
+from typing import List, Tuple
+from api.models.astrological import Planet, Sign
 
 # Configure logging
 logger = logging.getLogger("jai-api.mock_swisseph")
-logger.info("Using mock Swiss Ephemeris implementation")
 
-# Constants for planetary indices
+# Debug flag to control mock usage
+USE_MOCK = False
+
+# Constants for planetary indices (Vedic planets only)
 SUN = 0
 MOON = 1
 MERCURY = 2
@@ -19,10 +23,7 @@ VENUS = 3
 MARS = 4
 JUPITER = 5
 SATURN = 6
-URANUS = 7
-NEPTUNE = 8
-PLUTO = 9
-MEAN_NODE = 10  # Rahu
+MEAN_NODE = 7  # Rahu
 
 # Constants for ayanamsa options
 SIDM_LAHIRI = 1
@@ -33,21 +34,25 @@ SIDM_KRISHNAMURTI = 3
 _ephe_path = "./ephemeris"
 _sid_mode = SIDM_LAHIRI
 
-# Mock implementation
 def set_ephe_path(path):
     """Set ephemeris path - mock implementation"""
     global _ephe_path
     _ephe_path = path
-    logger.info(f"Mock: Set ephemeris path to {path}")
+    if USE_MOCK:
+        logger.info(f"Mock: Set ephemeris path to {path}")
 
 def set_sid_mode(mode):
     """Set sidereal mode - mock implementation"""
     global _sid_mode
     _sid_mode = mode
-    logger.info(f"Mock: Set ayanamsa mode to {mode}")
+    if USE_MOCK:
+        logger.info(f"Mock: Set ayanamsa mode to {mode}")
 
 def julday(year, month, day, hour):
     """Calculate Julian day number - simplified implementation"""
+    if not USE_MOCK:
+        raise RuntimeError("Mock Swiss Ephemeris is disabled")
+        
     dt = datetime(year, month, day, int(hour), int((hour*60) % 60), int((hour*3600) % 60))
     # Simplified Julian day calculation
     jd = 2451545.0 + (dt - datetime(2000, 1, 1, 12, 0, 0)).total_seconds() / 86400.0
@@ -56,6 +61,9 @@ def julday(year, month, day, hour):
 
 def get_ayanamsa(jd):
     """Get ayanamsa value - mock implementation"""
+    if not USE_MOCK:
+        raise RuntimeError("Mock Swiss Ephemeris is disabled")
+        
     # Different offsets based on ayanamsa system
     if _sid_mode == SIDM_LAHIRI:
         offset = 23.85
@@ -72,10 +80,13 @@ def get_ayanamsa(jd):
 
 def calc_ut(jd, planet_id):
     """Calculate planetary position - mock implementation"""
+    if not USE_MOCK:
+        raise RuntimeError("Mock Swiss Ephemeris is disabled")
+        
     # Base longitude calculation using simple simulation
     base_long = (jd % 365.25) * (360/365.25)
     
-    # Add offsets for different planets
+    # Add offsets for different planets (Vedic planets only)
     planet_offsets = {
         SUN: 0,
         MOON: base_long * 12,  # Moon moves ~12x faster
@@ -84,9 +95,6 @@ def calc_ut(jd, planet_id):
         MARS: 120,
         JUPITER: 180,
         SATURN: 240,
-        URANUS: 270,
-        NEPTUNE: 300,
-        PLUTO: 330,
         MEAN_NODE: 150
     }
     
@@ -102,14 +110,22 @@ def calc_ut(jd, planet_id):
     distance = 1.0 + random.uniform(0, 0.1)
     
     # Calculate speed (negative for retrograde)
-    speed = random.uniform(-0.5, 1.5)
-    if planet_id in [MERCURY, VENUS, MARS, JUPITER, SATURN] and random.random() < 0.2:
-        speed *= -1  # 20% chance of retrograde for these planets
+    if planet_id in [SUN, MOON]:
+        speed = random.uniform(0.5, 1.0)  # Never retrograde
+    elif planet_id == MEAN_NODE:
+        speed = random.uniform(-0.5, -0.1)  # Always retrograde
+    else:
+        speed = random.uniform(-0.5, 1.5)
+        if random.random() < 0.2:
+            speed *= -1  # 20% chance of retrograde for other planets
     
     return [longitude, latitude, distance, speed, 0, 0]
 
 def houses_ex(jd, lat, lon, hsys):
     """Calculate houses - mock implementation"""
+    if not USE_MOCK:
+        raise RuntimeError("Mock Swiss Ephemeris is disabled")
+        
     # Create house cusps
     houses_cusps = [0]  # 1-based index, so add a placeholder at 0
     
@@ -124,10 +140,6 @@ def houses_ex(jd, lat, lon, hsys):
         houses_cusps.append(cusp)
     
     # Calculate special points
-    # ascmc[0] = Ascendant
-    # ascmc[1] = MC (Medium Coeli)
-    # ascmc[2] = ARMC
-    # ascmc[3] = Vertex
     ascmc = [
         asc_longitude,
         (asc_longitude + 270) % 360,  # MC is roughly opposite side

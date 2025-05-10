@@ -1,3 +1,4 @@
+"""Tests for yoga calculations"""
 import pytest
 from datetime import datetime
 from api.models.astrological import (
@@ -128,4 +129,110 @@ def test_no_yogas():
     yogas = calculator.calculate_yogas(planets, houses)
     
     # Check that no yogas are present
-    assert len(yogas) == 0 
+    assert len(yogas) == 0
+
+def test_yoga_calculator_initialization():
+    """Test that yoga calculator initializes correctly"""
+    calculator = YogaCalculator()
+    assert calculator is not None
+    assert hasattr(calculator, 'yoga_definitions')
+    assert len(calculator.yoga_definitions) > 0
+
+def test_raja_yoga_detection():
+    """Test detection of Raja Yoga"""
+    calculator = YogaCalculator()
+    
+    # Create positions for Raja Yoga (Jupiter in 9th house, Venus in 10th)
+    positions = [
+        PlanetPosition(planet=Planet.JUPITER, sign=Sign.ARIES, degree=15.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.VENUS, sign=Sign.TAURUS, degree=20.0, is_retrograde=False)
+    ]
+    
+    houses = [
+        HousePosition(house_number=9, sign=Sign.ARIES, degree=0.0),
+        HousePosition(house_number=10, sign=Sign.TAURUS, degree=0.0)
+    ]
+    
+    yogas = calculator.calculate_yogas(positions, houses)
+    raja_yoga = next((y for y in yogas if y.name == "Raja Yoga"), None)
+    
+    assert raja_yoga is not None
+    assert "Jupiter" in raja_yoga.planets
+    assert "Venus" in raja_yoga.planets
+    assert raja_yoga.strength > 0.0
+
+def test_budha_aditya_yoga_detection():
+    """Test detection of Budha-Aditya Yoga"""
+    calculator = YogaCalculator()
+    
+    # Create positions for Budha-Aditya Yoga (Mercury and Sun in same sign)
+    positions = [
+        PlanetPosition(planet=Planet.MERCURY, sign=Sign.LEO, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SUN, sign=Sign.LEO, degree=15.0, is_retrograde=False)
+    ]
+    
+    houses = [HousePosition(house_number=i, sign=Sign.ARIES, degree=0.0) for i in range(1, 13)]
+    
+    yogas = calculator.calculate_yogas(positions, houses)
+    budha_aditya = next((y for y in yogas if y.name == "Budha-Aditya Yoga"), None)
+    
+    assert budha_aditya is not None
+    assert "Mercury" in budha_aditya.planets
+    assert "Sun" in budha_aditya.planets
+    assert budha_aditya.strength > 0.0
+
+def test_gaja_kesari_yoga_detection():
+    """Test detection of Gaja Kesari Yoga"""
+    calculator = YogaCalculator()
+    
+    # Create positions for Gaja Kesari Yoga (Jupiter in kendra from Moon)
+    positions = [
+        PlanetPosition(planet=Planet.JUPITER, sign=Sign.CANCER, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.MOON, sign=Sign.ARIES, degree=15.0, is_retrograde=False)
+    ]
+    
+    houses = [HousePosition(house_number=i, sign=Sign.ARIES, degree=0.0) for i in range(1, 13)]
+    
+    yogas = calculator.calculate_yogas(positions, houses)
+    gaja_kesari = next((y for y in yogas if y.name == "Gaja Kesari Yoga"), None)
+    
+    assert gaja_kesari is not None
+    assert "Jupiter" in gaja_kesari.planets
+    assert "Moon" in gaja_kesari.planets
+    assert gaja_kesari.strength > 0.0
+
+def test_no_yoga_detection():
+    """Test that no yogas are detected when conditions aren't met"""
+    calculator = YogaCalculator()
+    
+    # Create positions that don't form any yogas
+    positions = [
+        PlanetPosition(planet=Planet.MARS, sign=Sign.GEMINI, degree=10.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.SATURN, sign=Sign.VIRGO, degree=20.0, is_retrograde=False)
+    ]
+    
+    houses = [HousePosition(house_number=i, sign=Sign.ARIES, degree=0.0) for i in range(1, 13)]
+    
+    yogas = calculator.calculate_yogas(positions, houses)
+    assert len(yogas) == 0
+
+def test_yoga_strength_calculation():
+    """Test that yoga strength is calculated correctly"""
+    calculator = YogaCalculator()
+    
+    # Create positions for a strong Raja Yoga
+    positions = [
+        PlanetPosition(planet=Planet.JUPITER, sign=Sign.ARIES, degree=15.0, is_retrograde=False),
+        PlanetPosition(planet=Planet.VENUS, sign=Sign.TAURUS, degree=20.0, is_retrograde=False)
+    ]
+    
+    houses = [
+        HousePosition(house_number=9, sign=Sign.ARIES, degree=0.0),
+        HousePosition(house_number=10, sign=Sign.TAURUS, degree=0.0)
+    ]
+    
+    yogas = calculator.calculate_yogas(positions, houses)
+    raja_yoga = next((y for y in yogas if y.name == "Raja Yoga"), None)
+    
+    assert raja_yoga is not None
+    assert 0.0 < raja_yoga.strength <= 1.0 
