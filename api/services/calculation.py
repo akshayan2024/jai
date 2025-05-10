@@ -23,15 +23,10 @@ import math
 import os
 import logging
 from pathlib import Path
+import pyswisseph as swe
 
 # Configure logging
 logger = logging.getLogger("jai-api.calculation")
-
-# TEMPORARY FIX: Always use the mock implementation to avoid ephemeris file dependency
-logger.warning("Using mock Swiss Ephemeris implementation")
-from api.services.mock_swisseph import *
-import api.services.mock_swisseph as swe
-logger.warning("Mock Swiss Ephemeris is only for development and testing!")
 
 # Initialize Swiss Ephemeris
 def initialize_ephemeris():

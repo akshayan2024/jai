@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Dict, Optional
-import swisseph as swe
 import logging
 from api.models.astrological import (
     Planet, Sign, PlanetPosition, HousePosition,
@@ -10,6 +9,7 @@ from api.models.astrological import (
 from api.services.yoga_calculations import YogaCalculator
 from api.services.dasha_calculations import DashaCalculator
 from api.services.aspect_calculations import AspectCalculator
+from api.services.ephemeris_service import ephemeris_service
 
 # Configure logging
 logger = logging.getLogger("jai-api.astrological")
@@ -21,9 +21,7 @@ class AstrologicalCalculator:
     """Main calculator for astrological calculations"""
     
     def __init__(self):
-        # Initialize Swiss Ephemeris
-        swe.set_ephe_path("ephemeris")
-        # Initialize yoga calculator
+        # Initialize calculators
         self.yoga_calculator = YogaCalculator()
         self.dasha_calculator = DashaCalculator()
         self.aspect_calculator = AspectCalculator()
@@ -31,7 +29,7 @@ class AstrologicalCalculator:
     def calculate_ascendant(self, birth_data: BirthData) -> HousePosition:
         """Calculate the ascendant (Lagna) for given birth data"""
         # Convert date to Julian day
-        jd = swe.julday(
+        jd = ephemeris_service.julday(
             birth_data.date.year,
             birth_data.date.month,
             birth_data.date.day,
@@ -39,12 +37,11 @@ class AstrologicalCalculator:
         )
         
         # Calculate ascendant
-        result = swe.houses(jd, birth_data.latitude, birth_data.longitude)
-        ascendant_degree = result[0]  # Ascendant degree
+        asc_longitude, _ = ephemeris_service.get_ascendant(jd, birth_data.latitude, birth_data.longitude)
         
         # Convert to sign and degree
-        sign_num = int(ascendant_degree / 30) + 1
-        degree = ascendant_degree % 30
+        sign_num = int(asc_longitude / 30) + 1
+        degree = asc_longitude % 30
         
         return HousePosition(
             house_number=1,
@@ -54,7 +51,7 @@ class AstrologicalCalculator:
     
     def calculate_planet_positions(self, birth_data: BirthData) -> List[PlanetPosition]:
         """Calculate positions of all planets for given birth data"""
-        jd = swe.julday(
+        jd = ephemeris_service.julday(
             birth_data.date.year,
             birth_data.date.month,
             birth_data.date.day,
@@ -65,17 +62,17 @@ class AstrologicalCalculator:
         for planet in Planet:
             if planet in [Planet.RAHU, Planet.KETU]:
                 # Calculate Rahu/Ketu (Lunar nodes)
-                result = swe.calc_ut(jd, swe.MEAN_NODE)
-                degree = result[0]
+                result = ephemeris_service.get_planet_position(jd, swe.MEAN_NODE)
+                degree = result["longitude"]
                 # Both nodes are always retrograde in nature
                 is_retrograde = True
                 
                 if planet == Planet.KETU:
                     degree = (degree + 180) % 360
                     # Ketu inherits Rahu's speed (both are retrograde)
-                    speed = result[3]  # Don't negate the speed
+                    speed = result["speed"]  # Don't negate the speed
                 else:
-                    speed = result[3]
+                    speed = result["speed"]
                 
                 sign_num = int(degree / 30) + 1
                 degree_in_sign = degree % 30
@@ -89,13 +86,13 @@ class AstrologicalCalculator:
             else:
                 # Calculate other planets
                 planet_id = self._get_planet_id(planet)
-                result = swe.calc_ut(jd, planet_id)
-                degree = result[0]
+                result = ephemeris_service.get_planet_position(jd, planet_id)
+                degree = result["longitude"]
                 # Sun and Moon are never retrograde
                 if planet in [Planet.SUN, Planet.MOON]:
                     is_retrograde = False
                 else:
-                    is_retrograde = result[3] < 0
+                    is_retrograde = result["speed"] < 0
                 
                 sign_num = int(degree / 30) + 1
                 degree_in_sign = degree % 30
@@ -173,7 +170,7 @@ class AstrologicalCalculator:
     
     def calculate_transits(self, date: datetime, latitude: float, longitude: float) -> TransitResponse:
         """Calculate current planetary transits"""
-        jd = swe.julday(
+        jd = ephemeris_service.julday(
             date.year,
             date.month,
             date.day,
@@ -183,9 +180,9 @@ class AstrologicalCalculator:
         positions = []
         for planet in Planet:
             if planet in [Planet.RAHU, Planet.KETU]:
-                result = swe.calc_ut(jd, swe.MEAN_NODE)
-                degree = result[0]
-                is_retrograde = result[3] < 0
+                result = ephemeris_service.get_planet_position(jd, swe.MEAN_NODE)
+                degree = result["longitude"]
+                is_retrograde = result["speed"] < 0
                 
                 if planet == Planet.KETU:
                     degree = (degree + 180) % 360
@@ -201,9 +198,9 @@ class AstrologicalCalculator:
                 ))
             else:
                 planet_id = self._get_planet_id(planet)
-                result = swe.calc_ut(jd, planet_id)
-                degree = result[0]
-                is_retrograde = result[3] < 0
+                result = ephemeris_service.get_planet_position(jd, planet_id)
+                degree = result["longitude"]
+                is_retrograde = result["speed"] < 0
                 
                 sign_num = int(degree / 30) + 1
                 degree_in_sign = degree % 30
@@ -235,49 +232,7 @@ class AstrologicalCalculator:
 
     def get_planet_dignity(self, planet: Planet, sign: Sign) -> str:
         """Get planet's dignity in a sign"""
-        # Classical dignities for the seven planets
-        exaltation_signs = {
-            Planet.SUN: Sign.ARIES,
-            Planet.MOON: Sign.TAURUS,
-            Planet.MARS: Sign.CAPRICORN,
-            Planet.MERCURY: Sign.VIRGO,
-            Planet.JUPITER: Sign.CANCER,
-            Planet.VENUS: Sign.PISCES,
-            Planet.SATURN: Sign.LIBRA
-        }
-        
-        debilitation_signs = {
-            Planet.SUN: Sign.LIBRA,
-            Planet.MOON: Sign.SCORPIO,
-            Planet.MARS: Sign.CANCER,
-            Planet.MERCURY: Sign.PISCES,
-            Planet.JUPITER: Sign.CAPRICORN,
-            Planet.VENUS: Sign.VIRGO,
-            Planet.SATURN: Sign.ARIES
-        }
-        
-        own_signs = {
-            Planet.SUN: [Sign.LEO],
-            Planet.MOON: [Sign.CANCER],
-            Planet.MARS: [Sign.ARIES, Sign.SCORPIO],
-            Planet.MERCURY: [Sign.GEMINI, Sign.VIRGO],
-            Planet.JUPITER: [Sign.SAGITTARIUS, Sign.PISCES],
-            Planet.VENUS: [Sign.TAURUS, Sign.LIBRA],
-            Planet.SATURN: [Sign.CAPRICORN, Sign.AQUARIUS]
-        }
-        
-        # Handle Rahu/Ketu separately as they don't have classical dignities
-        if planet in [Planet.RAHU, Planet.KETU]:
-            return "Neutral"  # Classical texts don't assign dignities to nodes
-        
-        if sign == exaltation_signs.get(planet):
-            return "Exalted"
-        elif sign == debilitation_signs.get(planet):
-            return "Debilitated"
-        elif sign in own_signs.get(planet, []):
-            return "Own Sign"
-        else:
-            return "Neutral"
+        return ephemeris_service.get_planet_dignity(self._get_planet_id(planet), sign.value - 1)
 
     def _validate_chart(self, ascendant: HousePosition, planets: List[PlanetPosition], houses: List[HousePosition]):
         """Internal validation for development/debugging only"""
