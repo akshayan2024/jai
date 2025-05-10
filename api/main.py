@@ -135,9 +135,9 @@ async def root():
         "version": "1.0.0",
         "endpoints": [
             "/v1/api/health",
+            "/v1/api/horoscope",
             "/v1/api/horoscope/planets",
-            "/v1/api/horoscope/ascendant",
-            "/v1/api/horoscope"
+            "/v1/api/horoscope/ascendant"
         ]
     }
 
@@ -153,12 +153,11 @@ async def health_check():
 def create_app():
     """Initialize and configure the application"""
     # Import routers from routes module
-    from api.routes import ascendant_router, planets_router
+    from api.routes import ascendant_router, planets_router, horoscope_router
     
     # Include routers
     app.include_router(ascendant_router)
     app.include_router(planets_router)
-    
-    # Add any additional routers here in the future
+    app.include_router(horoscope_router)
     
     return app 
