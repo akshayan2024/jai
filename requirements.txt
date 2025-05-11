@@ -18,4 +18,5 @@ requests-mock==1.11.0
 
 # Production dependencies
 gunicorn==20.1.0
-email-validator==2.1.0.post1 
+email-validator==2.1.0.post1
+slowapi==0.1.8 
