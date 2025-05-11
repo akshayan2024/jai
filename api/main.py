@@ -41,6 +41,15 @@ MAX_REQUEST_SIZE = int(os.environ.get("MAX_REQUEST_SIZE", "1024"))  # max reques
 # Initialize rate limiter (60 requests per minute per IP)
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
+# Create FastAPI app
+app = FastAPI(
+    title="JAI - Jyotish Astrological Interpretation API",
+    description="API for Vedic astrology calculations",
+    version="1.0.0",
+    docs_url="/v1/docs",
+    redoc_url="/v1/redoc",
+)
+
 # Add rate limiting middleware
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
@@ -52,15 +61,6 @@ app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
 async def rate_limit_middleware(request: Request, call_next):
     response = await limiter(request, call_next)
     return response
-
-# Create FastAPI app
-app = FastAPI(
-    title="JAI - Jyotish Astrological Interpretation API",
-    description="API for Vedic astrology calculations",
-    version="1.0.0",
-    docs_url="/v1/docs",
-    redoc_url="/v1/redoc",
-)
 
 # Add security middleware
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
