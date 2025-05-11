@@ -57,11 +57,6 @@ app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
     content={"detail": "Rate limit exceeded. Please try again later."}
 ))
 
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    response = await limiter(request, call_next)
-    return response
-
 # Add security middleware
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
