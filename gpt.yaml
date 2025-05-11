@@ -533,12 +533,9 @@ components:
   schemas:
     BirthDataRequest:
       type: object
-      required:
-        - birth_date
-        - birth_time
-        - latitude
-        - longitude
-        - timezone_offset
+      oneOf:
+        - required: [birth_date, birth_time, latitude, longitude, timezone_offset]
+        - required: [birth_date, birth_time, place]
       properties:
         birth_date:
           type: string
@@ -551,16 +548,20 @@ components:
           example: "14:30:00"
         latitude:
           type: number
-          description: Birth latitude (-90 to +90)
+          description: Birth latitude (-90 to +90). Required if 'place' is not provided.
           example: 28.6139
         longitude:
           type: number
-          description: Birth longitude (-180 to +180)
+          description: Birth longitude (-180 to +180). Required if 'place' is not provided.
           example: 77.2090
         timezone_offset:
           type: number
-          description: Time zone offset from UTC in hours
+          description: Time zone offset from UTC in hours. Required if 'place' is not provided.
           example: 5.5
+        place:
+          type: string
+          description: Optional place name (city, address, etc.) to geocode if latitude/longitude/timezone_offset are not provided. If both are provided, coordinates take precedence.
+          example: "Chennai, India"
         ayanamsa:
           type: string
           description: Ayanamsa method

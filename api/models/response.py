@@ -16,7 +16,7 @@ class BaseResponse(BaseModel):
     request_params: Dict[str, Any] = Field(..., description="Original request parameters")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "success",
                 "version": "1.0",
@@ -38,7 +38,7 @@ class ErrorResponse(BaseResponse):
     error_details: Optional[Dict[str, Any]] = Field(None, description="Additional error context")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "error",
                 "version": "1.0",
@@ -79,7 +79,7 @@ class PlanetInfo(BaseModel):
     dignity: str = Field(..., description="Planet's dignity in the sign")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Jupiter",
                 "sanskrit_name": "Guru",
@@ -114,7 +114,7 @@ class AscendantInfo(BaseModel):
     nakshatra_pada: int = Field(..., description="Nakshatra pada (1-4)")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "sign": "Taurus",
                 "sign_id": 2,
@@ -139,7 +139,7 @@ class HouseInfo(BaseModel):
     seconds: int = Field(..., description="Seconds (0-59)")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "house_number": 1,
                 "sign": "Taurus",
@@ -159,7 +159,7 @@ class DashaPeriod(BaseModel):
     years: float = Field(..., description="Duration in years")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "planet": "Jupiter",
                 "start_date": "2023-01-01",
@@ -181,7 +181,7 @@ class BirthDataInfo(BaseModel):
     location_derived: bool = Field(..., description="Whether location was derived from place name")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "date": "1990-01-01",
                 "time": "12:00:00",
@@ -204,7 +204,7 @@ class HoroscopeResponse(BaseResponse):
     mahadasha: List[DashaPeriod] = Field(..., description="Mahadasha periods")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "success",
                 "version": "1.0",

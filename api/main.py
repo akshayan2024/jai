@@ -19,6 +19,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 import requests
 from api.services.ephemeris_service import ephemeris_service
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Import error handling
 from api.utils.error_handling import get_error_handlers, validation_exception_handler
@@ -35,47 +38,20 @@ RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "100"))  # reque
 RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "3600"))  # window in seconds
 MAX_REQUEST_SIZE = int(os.environ.get("MAX_REQUEST_SIZE", "1024"))  # max request size in KB
 
-# Rate limiting middleware
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app):
-        super().__init__(app)
-        self.requests = {}
+# Initialize rate limiter (60 requests per minute per IP)
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
-    async def dispatch(self, request: Request, call_next):
-        # Get client IP
-        client_ip = request.client.host
-        
-        # Clean old entries
-        current_time = time.time()
-        self.requests = {
-            ip: timestamps 
-            for ip, timestamps in self.requests.items()
-            if current_time - timestamps[-1] < RATE_LIMIT_WINDOW
-        }
-        
-        # Check rate limit
-        if client_ip in self.requests:
-            timestamps = self.requests[client_ip]
-            if len(timestamps) >= RATE_LIMIT_REQUESTS:
-                logger.warning(f"Rate limit exceeded for IP: {client_ip}")
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": "Too many requests. Please try again later."}
-                )
-            timestamps.append(current_time)
-        else:
-            self.requests[client_ip] = [current_time]
-        
-        # Check request size
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > MAX_REQUEST_SIZE * 1024:
-            logger.warning(f"Request too large from IP: {client_ip}")
-            return JSONResponse(
-                status_code=413,
-                content={"detail": f"Request too large. Maximum size is {MAX_REQUEST_SIZE}KB."}
-            )
-        
-        return await call_next(request)
+# Add rate limiting middleware
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
+    status_code=429,
+    content={"detail": "Rate limit exceeded. Please try again later."}
+))
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    response = await limiter(request, call_next)
+    return response
 
 # Create FastAPI app
 app = FastAPI(
@@ -88,7 +64,6 @@ app = FastAPI(
 
 # Add security middleware
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
-app.add_middleware(RateLimitMiddleware)
 
 # Register exception handlers
 exception_handlers = get_error_handlers()
@@ -101,7 +76,8 @@ app.add_exception_handler(ValidationError, validation_exception_handler)
 # Add CORS middleware with proper configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, replace with specific origins
+    # Use environment variable for allowed origins in production
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

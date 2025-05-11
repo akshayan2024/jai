@@ -683,8 +683,12 @@ def validate_d1_chart(
     logger.info("====================================================")
 
 # Geocoding helper (using OpenCage)
-def geocode_place(place: str, api_key: str) -> Tuple[float, float, float]:
+def geocode_place(place: str, api_key: str = None) -> Tuple[float, float, float]:
     """Geocode a place name to (latitude, longitude, timezone_offset_hours) using OpenCage API."""
+    if api_key is None:
+        api_key = os.environ.get("OPENCAGE_API_KEY")
+    if not api_key:
+        raise ValueError("OpenCage API key not set. Please set the OPENCAGE_API_KEY environment variable.")
     url = "https://api.opencagedata.com/geocode/v1/json"
     params = {
         "q": place,
@@ -703,7 +707,7 @@ def geocode_place(place: str, api_key: str) -> Tuple[float, float, float]:
         raise ValueError(f"Could not geocode place: {place}")
 
 # Helper to get birth data (lat, long, tz) from request fields
-def get_birth_data(request, api_key: str):
+def get_birth_data(request):
     """
     Accepts a request object with latitude, longitude, timezone_offset, and/or place.
     Returns (latitude, longitude, timezone_offset).
@@ -712,6 +716,6 @@ def get_birth_data(request, api_key: str):
         and request.latitude is not None and request.longitude is not None and request.timezone_offset is not None:
         return request.latitude, request.longitude, request.timezone_offset
     elif hasattr(request, 'place') and request.place:
-        return geocode_place(request.place, api_key)
+        return geocode_place(request.place)
     else:
         raise ValueError("Must provide either latitude/longitude/timezone_offset or place name.") 

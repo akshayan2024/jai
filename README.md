@@ -199,4 +199,27 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Production Deployment
+
+To deploy this API in production, ensure the following:
+
+1. **Swiss Ephemeris**
+   - Install the Swiss Ephemeris C library and data files.
+   - Install the Python package: `pip install pyswisseph`
+   - Download ephemeris data files from [Swiss Ephemeris downloads](https://www.astro.com/ftp/swisseph/) and set the path using the `EPHEMERIS_PATH` environment variable.
+
+2. **Environment Variables**
+   - `EPHEMERIS_PATH`: Path to Swiss Ephemeris data files (e.g., `./ephemeris`)
+   - `OPENCAGE_API_KEY`: Your OpenCage geocoding API key (required for place-based lookups)
+   - `ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins (e.g., `https://yourdomain.com,https://app.yourdomain.com`)
+
+3. **Security & Rate Limiting**
+   - CORS is restricted to trusted origins via `ALLOWED_ORIGINS`.
+   - Rate limiting is enabled (60 requests/minute per IP).
+   - All sensitive keys must be set via environment variables, never hardcoded.
+
+4. **Testing**
+   - Ensure all endpoints work with both coordinate and place-based input.
+   - Check logs for any warnings or errors. 
