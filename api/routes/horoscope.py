@@ -5,13 +5,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
-from api.services.astrological_calculations import AstrologicalCalculator
 from api.utils.input_validation import (
     CalculationInput,
     ValidationError,
     validate_date_range,
     validate_extreme_latitude
 )
+from api.services import calculation
 
 router = APIRouter(prefix="/v1/api/horoscope", tags=["horoscope"])
 
@@ -60,20 +60,41 @@ async def calculate_horoscope(request: HoroscopeRequest):
         # Validate extreme latitude
         validate_extreme_latitude(request.latitude)
         
-        # Create calculator instance
-        calculator = AstrologicalCalculator()
-        
-        # Calculate horoscope
-        result = calculator.calculate_horoscope(
-            date=calc_input.date,
+        # Use calculation.py functions
+        ascendant = calculation.calculate_ascendant(
+            birth_date=calc_input.date.strftime("%Y-%m-%d"),
+            birth_time=calc_input.date.strftime("%H:%M:%S"),
             latitude=calc_input.latitude,
             longitude=calc_input.longitude,
-            house_system=calc_input.house_system,
-            ayanamsa=calc_input.ayanamsa
+            timezone_offset=0,  # Adjust as needed
+            ayanamsa="lahiri"  # Adjust as needed
         )
-        
-        return HoroscopeResponse(**result)
-        
+        planets = calculation.calculate_planets(
+            birth_date=calc_input.date.strftime("%Y-%m-%d"),
+            birth_time=calc_input.date.strftime("%H:%M:%S"),
+            latitude=calc_input.latitude,
+            longitude=calc_input.longitude,
+            timezone_offset=0,  # Adjust as needed
+            ayanamsa="lahiri"  # Adjust as needed
+        )
+        houses = calculation.calculate_houses(
+            birth_date=calc_input.date.strftime("%Y-%m-%d"),
+            birth_time=calc_input.date.strftime("%H:%M:%S"),
+            latitude=calc_input.latitude,
+            longitude=calc_input.longitude,
+            timezone_offset=0,  # Adjust as needed
+            ayanamsa="lahiri"  # Adjust as needed
+        )
+        # Compose the response
+        return HoroscopeResponse(
+            ascendant=ascendant.longitude,
+            mc=0.0,  # Placeholder, add calculation if needed
+            armc=0.0,  # Placeholder
+            vertex=0.0,  # Placeholder
+            equatorial_ascendant=0.0,  # Placeholder
+            house_cusps=[h.longitude for h in houses],
+            planets=[p.dict() for p in planets]
+        )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -87,17 +108,6 @@ async def calculate_transits(
 ):
     """
     Calculate planetary transits for a given period.
-    
-    Args:
-        request: HoroscopeRequest containing birth data
-        start_date: Start date for transit calculations
-        end_date: End date for transit calculations
-        
-    Returns:
-        List of transit events
-        
-    Raises:
-        HTTPException: If calculation fails or input is invalid
     """
     try:
         # Validate input using our validation system
@@ -108,27 +118,11 @@ async def calculate_transits(
             house_system=request.house_system,
             ayanamsa=request.ayanamsa
         )
-        
         # Validate date range
         if start_date and end_date:
             validate_date_range(start_date, end_date)
-        
-        # Create calculator instance
-        calculator = AstrologicalCalculator()
-        
-        # Calculate transits
-        result = calculator.calculate_transits(
-            birth_date=calc_input.date,
-            latitude=calc_input.latitude,
-            longitude=calc_input.longitude,
-            start_date=start_date or calc_input.date,
-            end_date=end_date or calc_input.date,
-            house_system=calc_input.house_system,
-            ayanamsa=calc_input.ayanamsa
-        )
-        
-        return result
-        
+        # TODO: Implement canonical transit calculation using calculation.py
+        raise HTTPException(status_code=501, detail="Transit calculation not yet implemented with canonical logic.")
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -142,17 +136,6 @@ async def calculate_progressions(
 ):
     """
     Calculate secondary progressions for a given period.
-    
-    Args:
-        request: HoroscopeRequest containing birth data
-        start_date: Start date for progression calculations
-        end_date: End date for progression calculations
-        
-    Returns:
-        List of progression events
-        
-    Raises:
-        HTTPException: If calculation fails or input is invalid
     """
     try:
         # Validate input using our validation system
@@ -163,27 +146,11 @@ async def calculate_progressions(
             house_system=request.house_system,
             ayanamsa=request.ayanamsa
         )
-        
         # Validate date range
         if start_date and end_date:
             validate_date_range(start_date, end_date)
-        
-        # Create calculator instance
-        calculator = AstrologicalCalculator()
-        
-        # Calculate progressions
-        result = calculator.calculate_progressions(
-            birth_date=calc_input.date,
-            latitude=calc_input.latitude,
-            longitude=calc_input.longitude,
-            start_date=start_date or calc_input.date,
-            end_date=end_date or calc_input.date,
-            house_system=calc_input.house_system,
-            ayanamsa=calc_input.ayanamsa
-        )
-        
-        return result
-        
+        # TODO: Implement canonical progression calculation using calculation.py
+        raise HTTPException(status_code=501, detail="Progression calculation not yet implemented with canonical logic.")
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

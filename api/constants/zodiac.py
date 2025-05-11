@@ -34,7 +34,7 @@ SIGN_NAMES = {
     Sign.PISCES: "Meena"
 }
 
-# Sign elements
+# The following constants are reserved for future use:
 SIGN_ELEMENTS = {
     Sign.ARIES: "Fire",
     Sign.TAURUS: "Earth",
@@ -50,7 +50,6 @@ SIGN_ELEMENTS = {
     Sign.PISCES: "Water"
 }
 
-# Sign qualities
 SIGN_QUALITIES = {
     Sign.ARIES: "Cardinal",
     Sign.TAURUS: "Fixed",

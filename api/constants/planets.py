@@ -41,7 +41,7 @@ DASHA_YEARS = {
     Planet.MERCURY: 17
 }
 
-# Exaltation signs
+# The following constants are reserved for future use:
 EXALTATION_SIGNS = {
     Planet.SUN: 1,     # Aries
     Planet.MOON: 2,    # Taurus
@@ -52,7 +52,6 @@ EXALTATION_SIGNS = {
     Planet.SATURN: 7   # Libra
 }
 
-# Debilitation signs
 DEBILITATION_SIGNS = {
     Planet.SUN: 7,     # Libra
     Planet.MOON: 8,    # Scorpio
@@ -63,7 +62,6 @@ DEBILITATION_SIGNS = {
     Planet.SATURN: 1   # Aries
 }
 
-# Own signs (signs ruled by planets)
 OWN_SIGNS = {
     Planet.SUN: [5],           # Leo
     Planet.MOON: [4],          # Cancer
@@ -74,7 +72,6 @@ OWN_SIGNS = {
     Planet.SATURN: [10, 11]    # Capricorn, Aquarius
 }
 
-# Swiss Ephemeris planet IDs
 SWISS_EPHEM_IDS = {
     Planet.SUN: 0,
     Planet.MOON: 1,

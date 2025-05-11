@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JAI - Jyotish Astrological Interpretation API
-  description: API for Vedic astrological calculations based on the Swiss Ephemeris, providing ascendants, natal charts, divisional charts, mahadasha periods, nakshatra positions, planetary aspects, and yogas.
+  description: Comprehensive API for Vedic astrological calculations based on the Swiss Ephemeris, providing ascendants, natal charts, all divisional charts (D1-D60), mahadasha periods, antardashas, nakshatra positions, planetary aspects, yogas, and more.
   version: 1.0.0
 servers:
   - url: https://jai-api.onrender.com
@@ -56,7 +56,7 @@ paths:
       operationId: calculateAscendant
       summary: Calculate ascendant based on birth data
       tags:
-        - Example
+        - Basic Calculations
       requestBody:
         required: true
         content:
@@ -81,21 +81,7 @@ paths:
                     type: string
                     example: "Leo"
                   birth_data:
-                    type: object
-                    properties:
-                      date:
-                        type: string
-                        format: date
-                        example: "1990-01-15"
-                      time:
-                        type: string
-                        example: "14:30:00"
-                      latitude:
-                        type: number
-                        example: 28.6139
-                      longitude:
-                        type: number
-                        example: 77.2090
+                    $ref: '#/components/schemas/BirthDataSummary'
   /v1/api/horoscope:
     post:
       operationId: getHoroscope
@@ -117,81 +103,17 @@ paths:
                 type: object
                 properties:
                   birth_data:
-                    type: object
-                    properties:
-                      date:
-                        type: string
-                        format: date
-                        example: "1990-01-15"
-                      time:
-                        type: string
-                        example: "14:30:00"
-                      latitude:
-                        type: number
-                        example: 28.6139
-                      longitude:
-                        type: number
-                        example: 77.2090
-                      timezone_offset:
-                        type: number
-                        example: 5.5
-                      ayanamsa:
-                        type: string
-                        example: "lahiri"
+                    $ref: '#/components/schemas/BirthDataSummary'
                   ascendant:
-                    type: object
-                    properties:
-                      ascendant_degree:
-                        type: number
-                        example: 45.67
-                      ascendant_sign:
-                        type: integer
-                        example: 2
-                      ascendant_sign_name:
-                        type: string
-                        example: "Taurus"
+                    $ref: '#/components/schemas/AscendantInfo'
                   planets:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        planet:
-                          type: string
-                          example: "Sun"
-                        longitude:
-                          type: number
-                          example: 105.23
-                        sign_index:
-                          type: integer
-                          example: 4
-                        sign_name:
-                          type: string
-                          example: "Leo"
-                        house:
-                          type: integer
-                          example: 5
-                        is_retrograde:
-                          type: boolean
-                          example: false
+                      $ref: '#/components/schemas/PlanetPosition'
                   mahadasha:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        planet:
-                          type: string
-                          example: "Saturn"
-                        start_date:
-                          type: string
-                          format: date
-                          example: "1990-01-15"
-                        end_date:
-                          type: string
-                          format: date
-                          example: "2009-01-14"
-                        years:
-                          type: integer
-                          example: 19
+                      $ref: '#/components/schemas/MahadashaPeriod'
                   generated_at:
                     type: string
                     format: date-time
@@ -222,10 +144,18 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/PlanetPosition'
-  /v1/api/divisional_chart:
+                  houses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HouseInfo'
+                  aspects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanetaryAspect'
+  /v1/api/divisional_charts:
     post:
-      operationId: calculateDivisionalChart
-      summary: Calculate divisional charts (D1-D12)
+      operationId: calculateDivisionalCharts
+      summary: Calculate all divisional charts (D1-D60)
       tags:
         - Charts
       requestBody:
@@ -265,35 +195,139 @@ paths:
                 ayanamsa:
                   type: string
                   description: Ayanamsa method
-                  enum: [lahiri, raman, krishnamurti]
+                  enum: [lahiri, raman, krishnamurti, kp, jyotish_raman]
                   default: lahiri
                 charts:
                   type: array
                   description: List of divisional charts to calculate
                   items:
                     type: string
-                    enum: ["D1", "D2", "D3", "D4", "D7", "D9", "D10", "D12"]
-                  example: ["D1", "D9"]
+                    enum: ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D16", "D20", "D24", "D27", "D30", "D40", "D45", "D60"]
+                  example: ["D1", "D9", "D10"]
       responses:
         "200":
-          description: Divisional chart result
+          description: Divisional charts result
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  birth_data:
+                    $ref: '#/components/schemas/BirthDataSummary'
                   ascendant:
                     $ref: '#/components/schemas/AscendantInfo'
                   divisional_charts:
                     type: object
                     additionalProperties:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/DivisionalPlanetPosition'
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          example: "D9 (Navamsa)"
+                        description:
+                          type: string
+                          example: "Marriage, general fortune, spiritual practices"
+                        planets:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/DivisionalPlanetPosition'
+                        ascendant:
+                          $ref: '#/components/schemas/DivisionalAscendant'
+  /v1/api/specific_divisional_chart:
+    post:
+      operationId: calculateSpecificDivisionalChart
+      summary: Calculate a specific divisional chart in detail
+      tags:
+        - Charts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - birth_date
+                - birth_time
+                - latitude
+                - longitude
+                - timezone_offset
+                - chart_type
+              properties:
+                birth_date:
+                  type: string
+                  format: date
+                  description: Date of birth in YYYY-MM-DD format
+                  example: "1990-01-15"
+                birth_time:
+                  type: string
+                  description: Time of birth in HH:MM:SS format (24h)
+                  example: "14:30:00"
+                latitude:
+                  type: number
+                  description: Birth latitude (-90 to +90)
+                  example: 28.6139
+                longitude:
+                  type: number
+                  description: Birth longitude (-180 to +180)
+                  example: 77.2090
+                timezone_offset:
+                  type: number
+                  description: Time zone offset from UTC in hours
+                  example: 5.5
+                ayanamsa:
+                  type: string
+                  description: Ayanamsa method
+                  enum: [lahiri, raman, krishnamurti, kp, jyotish_raman]
+                  default: lahiri
+                chart_type:
+                  type: string
+                  description: Type of divisional chart
+                  enum: ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D16", "D20", "D24", "D27", "D30", "D40", "D45", "D60"]
+                  example: "D9"
+      responses:
+        "200":
+          description: Detailed divisional chart result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  birth_data:
+                    $ref: '#/components/schemas/BirthDataSummary'
+                  chart_info:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: "D9 (Navamsa)"
+                      description:
+                        type: string
+                        example: "Marriage, general fortune, spiritual practices"
+                      calculation_method:
+                        type: string
+                        example: "Traditional Navamsa division"
+                  ascendant:
+                    $ref: '#/components/schemas/DivisionalAscendant'
+                  planets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DivisionalPlanetPosition'
+                  houses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HouseInfo'
+                  aspects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanetaryAspect'
+                  special_lagnas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpecialLagna'
   /v1/api/mahadasha:
     post:
       operationId: calculateMahadasha
-      summary: Calculate Vimshottari Mahadasha periods
+      summary: Calculate Vimshottari Mahadasha periods with Antardashas
       tags:
         - Dashas
       requestBody:
@@ -333,12 +367,15 @@ paths:
                 ayanamsa:
                   type: string
                   description: Ayanamsa method
-                  enum: [lahiri, raman, krishnamurti]
+                  enum: [lahiri, raman, krishnamurti, kp, jyotish_raman]
                   default: lahiri
                 levels:
-                  type: string
-                  description: Comma-separated list of dasha levels to calculate
-                  example: "mahadasha,antardasha,pratyantardasha"
+                  type: integer
+                  description: Number of dasha levels to calculate (1=Mahadasha, 2=Antardasha, 3=Pratyantardasha, etc.)
+                  minimum: 1
+                  maximum: 5
+                  default: 2
+                  example: 3
       responses:
         "200":
           description: Mahadasha result
@@ -347,21 +384,151 @@ paths:
               schema:
                 type: object
                 properties:
+                  birth_data:
+                    $ref: '#/components/schemas/BirthDataSummary'
                   moon:
                     type: object
                     properties:
                       longitude:
                         type: number
+                        example: 123.45
                       nakshatra_index:
                         type: integer
+                        example: 9
                       nakshatra_name:
                         type: string
+                        example: "Ashlesha"
                       nakshatra_lord:
                         type: string
+                        example: "Mercury"
+                      pada:
+                        type: integer
+                        example: 3
+                  balance_at_birth:
+                    type: object
+                    properties:
+                      planet:
+                        type: string
+                        example: "Venus"
+                      years:
+                        type: number
+                        example: 12.5
+                      percentage:
+                        type: number
+                        example: 0.625
                   vimshottari_mahadasha:
                     type: array
                     items:
                       $ref: '#/components/schemas/MahadashaPeriod'
+  /v1/api/yogas:
+    post:
+      operationId: calculateYogas
+      summary: Calculate Vedic yogas in the birth chart
+      tags:
+        - Advanced Calculations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthDataRequest'
+      responses:
+        "200":
+          description: Yogas calculation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  birth_data:
+                    $ref: '#/components/schemas/BirthDataSummary'
+                  yogas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/YogaInfo'
+  /v1/api/nakshatra_analysis:
+    post:
+      operationId: calculateNakshatraAnalysis
+      summary: Calculate detailed Nakshatra analysis
+      tags:
+        - Advanced Calculations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthDataRequest'
+      responses:
+        "200":
+          description: Nakshatra analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  birth_data:
+                    $ref: '#/components/schemas/BirthDataSummary'
+                  planets_in_nakshatras:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanetNakshatraInfo'
+                  moon_nakshatra:
+                    $ref: '#/components/schemas/DetailedNakshatraInfo'
+                  ascendant_nakshatra:
+                    $ref: '#/components/schemas/DetailedNakshatraInfo'
+                  janma_nakshatra:
+                    $ref: '#/components/schemas/DetailedNakshatraInfo'
+  /v1/api/compatibility:
+    post:
+      operationId: calculateCompatibility
+      summary: Calculate compatibility between two birth charts (Kuta)
+      tags:
+        - Relationships
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - person1
+                - person2
+              properties:
+                person1:
+                  $ref: '#/components/schemas/BirthDataRequest'
+                person2:
+                  $ref: '#/components/schemas/BirthDataRequest'
+                include_charts:
+                  type: boolean
+                  description: Whether to include full chart details in response
+                  default: false
+      responses:
+        "200":
+          description: Compatibility calculation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overall_compatibility:
+                    type: object
+                    properties:
+                      score:
+                        type: number
+                        example: 28.5
+                      max_score:
+                        type: number
+                        example: 36
+                      percentage:
+                        type: number
+                        example: 79.2
+                      interpretation:
+                        type: string
+                        example: "Very Good Match"
+                  kuta_scores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KutaScore'
 components:
   schemas:
     BirthDataRequest:
@@ -397,8 +564,38 @@ components:
         ayanamsa:
           type: string
           description: Ayanamsa method
-          enum: [lahiri, raman, krishnamurti]
+          enum: [lahiri, raman, krishnamurti, kp, jyotish_raman]
           default: lahiri
+        calculation_method:
+          type: string
+          description: Calculation method for special calculations
+          enum: [traditional, kp, nadi, tajik]
+          default: traditional
+    BirthDataSummary:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "1990-01-15"
+        time:
+          type: string
+          example: "14:30:00"
+        latitude:
+          type: number
+          example: 28.6139
+        longitude:
+          type: number
+          example: 77.2090
+        timezone_offset:
+          type: number
+          example: 5.5
+        ayanamsa:
+          type: string
+          example: "lahiri"
+        location_name:
+          type: string
+          example: "New Delhi, India"
     AscendantInfo:
       type: object
       properties:
@@ -411,6 +608,12 @@ components:
         ascendant_sign_name:
           type: string
           example: "Taurus"
+        nakshatra:
+          type: string
+          example: "Rohini"
+        nakshatra_pada:
+          type: integer
+          example: 3
     PlanetPosition:
       type: object
       properties:
@@ -420,6 +623,9 @@ components:
         longitude:
           type: number
           example: 105.23
+        latitude:
+          type: number
+          example: 0.0
         sign_index:
           type: integer
           example: 4
@@ -432,6 +638,65 @@ components:
         is_retrograde:
           type: boolean
           example: false
+        speed:
+          type: number
+          example: 1.01
+        nakshatra:
+          type: string
+          example: "Magha"
+        nakshatra_pada:
+          type: integer
+          example: 2
+        nakshatra_lord:
+          type: string
+          example: "Ketu"
+        degree_in_sign:
+          type: number
+          example: 15.23
+        shadbala:
+          type: number
+          example: 425.78
+        dignity:
+          type: string
+          example: "Exalted"
+    HouseInfo:
+      type: object
+      properties:
+        house_number:
+          type: integer
+          example: 1
+        sign_index:
+          type: integer
+          example: 4
+        sign_name:
+          type: string
+          example: "Leo"
+        degree_start:
+          type: number
+          example: 100.0
+        degree_end:
+          type: number
+          example: 130.0
+        cusp_degree:
+          type: number
+          example: 100.0
+        planets:
+          type: array
+          items:
+            type: string
+          example: ["Sun", "Mercury"]
+    DivisionalAscendant:
+      type: object
+      properties:
+        divisional_sign_index:
+          type: integer
+          example: 4
+        divisional_sign_name:
+          type: string
+          example: "Leo"
+        divisional_degree:
+          type: number
+          example: 15.67
     DivisionalPlanetPosition:
       type: object
       properties:
@@ -444,12 +709,21 @@ components:
         divisional_sign_name:
           type: string
           example: "Leo"
+        divisional_degree:
+          type: number
+          example: 15.23
         divisional_house:
           type: integer
           example: 5
         is_retrograde:
           type: boolean
           example: false
+        is_combust:
+          type: boolean
+          example: false
+        dignity:
+          type: string
+          example: "Moolatrikona"
     MahadashaPeriod:
       type: object
       properties:
@@ -467,6 +741,9 @@ components:
         years:
           type: number
           example: 19
+        current:
+          type: boolean
+          example: false
         antardashas:
           type: array
           items:
@@ -486,6 +763,9 @@ components:
               months:
                 type: number
                 example: 36.1
+              current:
+                type: boolean
+                example: false
               pratyantardashas:
                 type: array
                 items:
@@ -505,3 +785,172 @@ components:
                     days:
                       type: integer
                       example: 180
+                    current:
+                      type: boolean
+                      example: false
+    PlanetaryAspect:
+      type: object
+      properties:
+        aspect_type:
+          type: string
+          example: "Conjunction"
+        planet1:
+          type: string
+          example: "Sun"
+        planet2:
+          type: string
+          example: "Mercury"
+        orb:
+          type: number
+          example: 3.5
+        exact_degree:
+          type: number
+          example: 105.23
+        is_applying:
+          type: boolean
+          example: true
+        is_exact:
+          type: boolean
+          example: false
+        is_separating:
+          type: boolean
+          example: false
+        strength:
+          type: number
+          example: 8.5
+        is_mutual:
+          type: boolean
+          example: false
+    SpecialLagna:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Indu Lagna"
+        longitude:
+          type: number
+          example: 105.23
+        sign_index:
+          type: integer
+          example: 4
+        sign_name:
+          type: string
+          example: "Leo"
+        nakshatra:
+          type: string
+          example: "Magha"
+        nakshatra_pada:
+          type: integer
+          example: 2
+    YogaInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Gajakesari Yoga"
+        is_present:
+          type: boolean
+          example: true
+        strength:
+          type: number
+          example: 8.5
+        planets_involved:
+          type: array
+          items:
+            type: string
+          example: ["Moon", "Jupiter"]
+        houses_involved:
+          type: array
+          items:
+            type: integer
+          example: [1, 5, 9]
+        description:
+          type: string
+          example: "Formed when Jupiter is in quadrant from Moon. Gives wealth, fame and spiritual inclination."
+        effects:
+          type: string
+          example: "Person will be wealthy, famous, and spiritually inclined."
+    PlanetNakshatraInfo:
+      type: object
+      properties:
+        planet:
+          type: string
+          example: "Sun"
+        nakshatra:
+          type: string
+          example: "Magha"
+        nakshatra_lord:
+          type: string
+          example: "Ketu"
+        pada:
+          type: integer
+          example: 2
+        longitude_in_nakshatra:
+          type: number
+          example: 15.23
+        percentage_traversed:
+          type: number
+          example: 56.7
+    DetailedNakshatraInfo:
+      type: object
+      properties:
+        nakshatra:
+          type: string
+          example: "Magha"
+        nakshatra_lord:
+          type: string
+          example: "Ketu"
+        pada:
+          type: integer
+          example: 2
+        degree:
+          type: number
+          example: 105.23
+        deity:
+          type: string
+          example: "Pitris"
+        symbol:
+          type: string
+          example: "Throne"
+        gana:
+          type: string
+          example: "Rakshasa"
+        nature:
+          type: string
+          example: "Fierce"
+        sex:
+          type: string
+          example: "Feminine"
+        energy:
+          type: string
+          example: "Tamasic"
+        animal:
+          type: string
+          example: "Rat"
+        description:
+          type: string
+          example: "Magha is the nakshatra of royal authority, pride, and ancestral connections."
+        effects:
+          type: string
+          example: "Strong leadership abilities, connection to ancestors, potential pride issues."
+    KutaScore:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Varna Kuta"
+        score:
+          type: number
+          example: 1
+        max_score:
+          type: number
+          example: 1
+        percentage:
+          type: number
+          example: 100
+        description:
+          type: string
+          example: "Compatibility of social status"
+        interpretation:
+          type: string
+          example: "Excellent social compatibility"

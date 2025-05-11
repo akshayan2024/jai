@@ -158,37 +158,4 @@ def get_error_handlers():
     return {
         APIError: api_error_handler,
         HTTPException: http_exception_with_details
-    }
-
-# Helper functions for common errors
-def raise_validation_error(message: str, param: str, value: Any) -> None:
-    """Raise a validation error with standardized format"""
-    raise APIError(
-        status_code=400,
-        error_code=ErrorCode.VALIDATION_ERROR,
-        message=message,
-        details={
-            "parameter": param,
-            "received_value": value
-        }
-    )
-
-def raise_missing_parameter_error(param: str) -> None:
-    """Raise an error for missing required parameter"""
-    raise APIError(
-        status_code=400,
-        error_code=ErrorCode.MISSING_PARAMETERS,
-        message=f"Missing required parameter: {param}"
-    )
-
-def raise_geocoding_error(place: str, error_message: str) -> None:
-    """Raise an error when geocoding fails"""
-    raise APIError(
-        status_code=400,
-        error_code=ErrorCode.GEOCODING_ERROR,
-        message=f"Could not geocode place: {place}",
-        details={
-            "place": place,
-            "error": error_message
-        }
-    ) 
+    } 

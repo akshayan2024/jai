@@ -23,10 +23,71 @@ import math
 import os
 import logging
 from pathlib import Path
-import pyswisseph as swe
+from api.constants.zodiac import Sign, SIGN_NAMES
+from api.constants.planets import Planet, PLANET_NAMES
+from api.constants.nakshatras import NAKSHATRA_NAMES
+import requests
 
 # Configure logging
 logger = logging.getLogger("jai-api.calculation")
+
+# Try to import pyswisseph, fall back to mock if not available
+try:
+    import pyswisseph as swe
+    USING_MOCK = False
+    logger.info("Using real Swiss Ephemeris library in calculation.py")
+except ImportError:
+    logger.warning("Swiss Ephemeris library not found, using mock implementation in calculation.py")
+    from api.services.mock_swisseph import (
+        # Constants
+        SUN, MOON, MERCURY, VENUS, MARS, JUPITER, SATURN, MEAN_NODE,
+        SIDM_LAHIRI, SIDM_RAMAN, SIDM_KRISHNAMURTI,
+        # Functions
+        julday, calc_ut, set_sid_mode, houses_ex
+    )
+    
+    # Create namespace for swe to avoid changing the rest of the code
+    class SwissEph:
+        # Planets
+        SUN = SUN
+        MOON = MOON
+        MERCURY = MERCURY
+        VENUS = VENUS
+        MARS = MARS
+        JUPITER = JUPITER
+        SATURN = SATURN
+        MEAN_NODE = MEAN_NODE
+        
+        # Ayanamsa constants
+        SIDM_LAHIRI = SIDM_LAHIRI
+        SIDM_RAMAN = SIDM_RAMAN
+        SIDM_KRISHNAMURTI = SIDM_KRISHNAMURTI
+        
+        @staticmethod
+        def julday(year, month, day, hour):
+            return julday(year, month, day, hour)
+        
+        @staticmethod
+        def calc_ut(jd, planet, flags=0):
+            return calc_ut(jd, planet, flags)
+        
+        @staticmethod
+        def set_sid_mode(sid_mode):
+            return set_sid_mode(sid_mode, 0, 0)
+        
+        @staticmethod
+        def houses_ex(jd, lat, lon, hsys):
+            return houses_ex(jd, lat, lon, hsys)
+    
+    # Replace swe with mock
+    swe = SwissEph()
+    
+    # Make sure the mock is enabled
+    from api.services.mock_swisseph import enable_mock
+    enable_mock()
+    USING_MOCK = True
+    
+    logger.warning("Swiss Ephemeris mock enabled in calculation.py")
 
 # Initialize Swiss Ephemeris
 def initialize_ephemeris():
@@ -51,17 +112,20 @@ def initialize_ephemeris():
     
     logger.info(f"Setting ephemeris path to {ephemeris_path}")
     
-    # Set the ephemeris path
-    swe.set_ephe_path(ephemeris_path)
-    
-    # Verify the ephemeris by attempting to calculate the sun's position
-    try:
-        test_jd = swe.julday(2000, 1, 1, 0)
-        _ = swe.calc_ut(test_jd, swe.SUN)
-        logger.info("Swiss Ephemeris initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to verify Swiss Ephemeris: {str(e)}")
-        logger.warning("Ephemeris data files may be missing. Calculations may be inaccurate.")
+    # Set the ephemeris path if we're not using the mock
+    if not USING_MOCK:
+        try:
+            swe.set_ephe_path(ephemeris_path)
+            
+            # Verify the ephemeris by attempting to calculate the sun's position
+            test_jd = swe.julday(2000, 1, 1, 0)
+            _ = swe.calc_ut(test_jd, swe.SUN)
+            logger.info("Swiss Ephemeris initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to verify Swiss Ephemeris: {str(e)}")
+            logger.warning("Ephemeris data files may be missing. Calculations may be inaccurate.")
+    else:
+        logger.info("Using mock Swiss Ephemeris implementation - initialization skipped")
 
 # Run initialization
 initialize_ephemeris()
@@ -71,48 +135,30 @@ AYANAMSA_LAHIRI = swe.SIDM_LAHIRI
 AYANAMSA_RAMAN = swe.SIDM_RAMAN
 AYANAMSA_KP = swe.SIDM_KRISHNAMURTI
 
-# Zodiac signs - 1-based indexing in the API but 0-based in the code
-ZODIAC_SIGNS = [
-    "Aries", "Taurus", "Gemini", "Cancer", 
-    "Leo", "Virgo", "Libra", "Scorpio", 
-    "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-]
-
-# Nakshatras (27 lunar mansions) - 0-based indexing
-NAKSHATRAS = [
-    "Ashwini", "Bharani", "Krittika", "Rohini", 
-    "Mrigashira", "Ardra", "Punarvasu", "Pushya", 
-    "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", 
-    "Hasta", "Chitra", "Swati", "Vishakha", 
-    "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha", 
-    "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha", 
-    "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
-]
-
 # Planet constants
 PLANETS = {
-    "Sun": swe.SUN,
-    "Moon": swe.MOON,
-    "Mars": swe.MARS,
-    "Mercury": swe.MERCURY,
-    "Jupiter": swe.JUPITER,
-    "Venus": swe.VENUS,
-    "Saturn": swe.SATURN,
-    "Rahu": swe.MEAN_NODE,  # North Node (Rahu)
-    "Ketu": -1  # South Node (Ketu), calculated from Rahu
+    Planet.SUN: swe.SUN,
+    Planet.MOON: swe.MOON,
+    Planet.MARS: swe.MARS,
+    Planet.MERCURY: swe.MERCURY,
+    Planet.JUPITER: swe.JUPITER,
+    Planet.VENUS: swe.VENUS,
+    Planet.SATURN: swe.SATURN,
+    Planet.RAHU: swe.MEAN_NODE,  # North Node (Rahu)
+    Planet.KETU: -1  # South Node (Ketu), calculated from Rahu
 }
 
 # Dasha years for each planet (Vimshottari system)
 DASHA_YEARS = {
-    "Sun": 6,
-    "Moon": 10,
-    "Mars": 7,
-    "Rahu": 18,
-    "Jupiter": 16,
-    "Saturn": 19,
-    "Mercury": 17,
-    "Ketu": 7,
-    "Venus": 20
+    Planet.SUN: 6,
+    Planet.MOON: 10,
+    Planet.MARS: 7,
+    Planet.RAHU: 18,
+    Planet.JUPITER: 16,
+    Planet.SATURN: 19,
+    Planet.MERCURY: 17,
+    Planet.KETU: 7,
+    Planet.VENUS: 20
 }
 
 # House systems - using Whole Sign (W) as required by specifications
@@ -120,15 +166,15 @@ HOUSE_SYSTEM = b'W'  # Whole Sign house system
 
 # Add Sanskrit names mapping
 SANSKRIT_NAMES = {
-    "Sun": "Surya",
-    "Moon": "Chandra",
-    "Mars": "Mangala",
-    "Mercury": "Budha",
-    "Jupiter": "Guru",
-    "Venus": "Shukra",
-    "Saturn": "Shani",
-    "Rahu": "Rahu",
-    "Ketu": "Ketu"
+    Planet.SUN: "Surya",
+    Planet.MOON: "Chandra",
+    Planet.MARS: "Mangala",
+    Planet.MERCURY: "Budha",
+    Planet.JUPITER: "Guru",
+    Planet.VENUS: "Shukra",
+    Planet.SATURN: "Shani",
+    Planet.RAHU: "Rahu",
+    Planet.KETU: "Ketu"
 }
 
 def get_julian_day(birth_date: str, birth_time: str, timezone_offset: float) -> float:
@@ -170,35 +216,26 @@ def get_nakshatra_info(longitude: float) -> Tuple[str, int, int]:
     """
     # Each nakshatra is 13°20' (or 13.33333... degrees)
     nakshatra_size = 13 + 1/3
-    
     # Calculate nakshatra ID (0-26)
     nakshatra_id = int(longitude / nakshatra_size) % 27
-    
     # Calculate pada (1-4)
     pada = int((longitude % nakshatra_size) / (nakshatra_size / 4)) + 1
-    
-    return NAKSHATRAS[nakshatra_id], nakshatra_id, pada
+    return NAKSHATRA_NAMES[nakshatra_id], nakshatra_id, pada
 
 def get_sign_info(longitude: float) -> Tuple[str, int]:
     """
     Get zodiac sign information based on longitude
-    
     Args:
         longitude (float): Longitude in degrees (0-360)
-        
     Returns:
         Tuple[str, int]: Tuple containing (sign_name, sign_id)
-        
     Note: sign_id is 0-based (0-11) internally to make modular arithmetic simpler,
     but will be converted to 1-based indexing (1-12) for API responses.
-    
-    Sign mapping (0-based):
-    0: Aries, 1: Taurus, 2: Gemini, 3: Cancer, 
-    4: Leo, 5: Virgo, 6: Libra, 7: Scorpio, 
-    8: Sagittarius, 9: Capricorn, 10: Aquarius, 11: Pisces
     """
     sign_id = int(longitude / 30) % 12  # Get 0-based index (0-11)
-    return ZODIAC_SIGNS[sign_id], sign_id
+    sign_enum = list(Sign)[sign_id]
+    sign_name = SIGN_NAMES[sign_enum]
+    return sign_name, sign_id
 
 def get_planet_dignity(planet: str, sign_id: int) -> str:
     """
@@ -389,12 +426,12 @@ def calculate_planets(
         # Get ascendant sign (0-11)
         asc_sign = int(asc_longitude / 30)
         
-        logger.info(f"Ascendant longitude: {asc_longitude}, sign: {ZODIAC_SIGNS[asc_sign]} (ID: {asc_sign})")
+        logger.info(f"Ascendant longitude: {asc_longitude}, sign: {SIGN_NAMES[list(Sign)[asc_sign]]} (ID: {asc_sign})")
         
         # Calculate positions for all planets
         planets_info = []
         
-        for planet_name, planet_id in PLANETS.items():
+        for planet, planet_id in PLANETS.items():
             # Calculate planet position
             position = calculate_planet_position(planet_id, julian_day)
             
@@ -409,7 +446,7 @@ def calculate_planets(
             # Sign_id and asc_sign are 0-based, but house is 1-based for the response
             house = ((sign_id - asc_sign) % 12) + 1
             
-            logger.info(f"Planet: {planet_name}, Longitude: {position['longitude']}, Sign: {sign_name} (ID: {sign_id}), Asc Sign: {asc_sign}, House: {house}")
+            logger.info(f"Planet: {PLANET_NAMES[planet]}, Longitude: {position['longitude']}, Sign: {sign_name} (ID: {sign_id}), Asc Sign: {asc_sign}, House: {house}")
             
             # Calculate degrees, minutes, seconds within sign
             total_degrees = position["longitude"] % 30
@@ -419,11 +456,11 @@ def calculate_planets(
             seconds = round((minutes_float - minutes) * 60, 4)
             
             # Determine planet dignity
-            dignity = get_planet_dignity(planet_name, sign_id)
+            dignity = get_planet_dignity(PLANET_NAMES[planet], sign_id)
             
             planets_info.append(PlanetInfo(
-                name=planet_name,
-                sanskrit_name=SANSKRIT_NAMES.get(planet_name, planet_name),
+                name=PLANET_NAMES[planet],
+                sanskrit_name=SANSKRIT_NAMES.get(planet, PLANET_NAMES[planet]),
                 longitude=round(position["longitude"], 4),
                 latitude=round(position.get("latitude", 0.0), 4),
                 sign=sign_name,
@@ -474,7 +511,7 @@ def calculate_houses(
         # Get ascendant sign (0-11)
         asc_sign = int(asc_longitude / 30)
         
-        logger.info(f"House calculation - Ascendant longitude: {asc_longitude}, sign: {ZODIAC_SIGNS[asc_sign]} (ID: {asc_sign})")
+        logger.info(f"House calculation - Ascendant longitude: {asc_longitude}, sign: {SIGN_NAMES[list(Sign)[asc_sign]]} (ID: {asc_sign})")
         
         houses = []
         
@@ -643,4 +680,38 @@ def validate_d1_chart(
         logger.info(f"Planet: {planet.name}, Sign: {planet.sign} (ID: {planet.sign_id} / 0-based: {sign_id_0based}), "
                    f"House: {planet.house}, Expected house: {expected_house}, Correct: {is_correct}")
     
-    logger.info("====================================================") 
+    logger.info("====================================================")
+
+# Geocoding helper (using OpenCage)
+def geocode_place(place: str, api_key: str) -> Tuple[float, float, float]:
+    """Geocode a place name to (latitude, longitude, timezone_offset_hours) using OpenCage API."""
+    url = "https://api.opencagedata.com/geocode/v1/json"
+    params = {
+        "q": place,
+        "key": api_key,
+        "no_annotations": 0
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    if data['results']:
+        result = data['results'][0]
+        lat = result['geometry']['lat']
+        lng = result['geometry']['lng']
+        timezone_offset = result['annotations']['timezone']['offset_sec'] / 3600
+        return lat, lng, timezone_offset
+    else:
+        raise ValueError(f"Could not geocode place: {place}")
+
+# Helper to get birth data (lat, long, tz) from request fields
+def get_birth_data(request, api_key: str):
+    """
+    Accepts a request object with latitude, longitude, timezone_offset, and/or place.
+    Returns (latitude, longitude, timezone_offset).
+    """
+    if hasattr(request, 'latitude') and hasattr(request, 'longitude') and hasattr(request, 'timezone_offset') \
+        and request.latitude is not None and request.longitude is not None and request.timezone_offset is not None:
+        return request.latitude, request.longitude, request.timezone_offset
+    elif hasattr(request, 'place') and request.place:
+        return geocode_place(request.place, api_key)
+    else:
+        raise ValueError("Must provide either latitude/longitude/timezone_offset or place name.") 
