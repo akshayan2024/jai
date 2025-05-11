@@ -287,29 +287,86 @@ class HoroscopeRequest(BaseModel):
     latitude: Optional[float] = Field(None, description="Latitude of birth place (alternative to place)")
     longitude: Optional[float] = Field(None, description="Longitude of birth place (alternative to place)")
     timezone_offset: Optional[float] = Field(None, description="Timezone offset in hours (alternative to place)")
-    ayanamsa: str = Field("lahiri", description="Ayanamsa system (lahiri, raman, etc.)")
+    ayanamsa: str = Field("lahiri", description="Ayanamsa system (lahiri, raman, krishnamurti, kp, jyotish_raman)")
     
     @validator('birth_date')
     def validate_birth_date(cls, v):
-        try:
-            datetime.strptime(v, "%Y-%m-%d")
+        """
+        Validate and normalize birth date format.
+        Supports multiple formats for ChatGPT integration.
+        """
+        # Support standard ISO format
+        iso_pattern = r'^\d{4}-\d{2}-\d{2}$'
+        if re.match(iso_pattern, v):
             return v
-        except ValueError:
-            raise ValueError("birth_date must be in YYYY-MM-DD format")
             
+        # Try various date formats (DD-MM-YYYY, DD/MM/YYYY, etc.)
+        date_formats = [
+            '%d-%m-%Y',  # 01-01-1990
+            '%d/%m/%Y',  # 01/01/1990
+            '%m-%d-%Y',  # 01-01-1990 (US format)
+            '%m/%d/%Y',  # 01/01/1990 (US format)
+            '%d %b %Y',  # 01 Jan 1990
+            '%d %B %Y',  # 01 January 1990
+            '%b %d %Y',  # Jan 01 1990
+            '%B %d %Y',  # January 01 1990
+            '%b %d, %Y', # Jan 01, 1990
+            '%B %d, %Y'  # January 01, 1990
+        ]
+        
+        # Try each format
+        for fmt in date_formats:
+            try:
+                parsed_date = datetime.strptime(v, fmt)
+                # Convert to YYYY-MM-DD
+                return parsed_date.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+                
+        # If we get here, no format matched
+        raise ValueError("Invalid birth date format. Supported formats include: YYYY-MM-DD, DD-MM-YYYY, MM/DD/YYYY, 01 Jan 1990, etc.")
+    
     @validator('birth_time')
     def validate_birth_time(cls, v):
-        try:
-            datetime.strptime(v, "%H:%M:%S")
+        """
+        Validate and normalize birth time format.
+        Supports multiple formats for ChatGPT integration.
+        """
+        # Standard format HH:MM:SS
+        std_pattern = r'^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$'
+        if re.match(std_pattern, v):
             return v
-        except ValueError:
-            try:
-                # Try without seconds
-                datetime.strptime(v, "%H:%M")
-                # Add seconds for consistency
-                return f"{v}:00"
-            except ValueError:
-                raise ValueError("birth_time must be in HH:MM:SS or HH:MM format")
+            
+        # HH:MM format (add seconds)
+        hhmm_pattern = r'^([01]\d|2[0-3]):([0-5]\d)$'
+        if re.match(hhmm_pattern, v):
+            return f"{v}:00"
+            
+        # HHMM format (4 digits)
+        hhmm_digit_pattern = r'^([01]\d|2[0-3])([0-5]\d)$'
+        hhmm_match = re.match(hhmm_digit_pattern, v)
+        if hhmm_match:
+            return f"{hhmm_match.group(1)}:{hhmm_match.group(2)}:00"
+            
+        # Try AM/PM format
+        am_pm_pattern = r'^(0?\d|1[0-2]):([0-5]\d)(?::([0-5]\d))?\s*(am|pm|AM|PM)$'
+        am_pm_match = re.match(am_pm_pattern, v)
+        if am_pm_match:
+            hour = int(am_pm_match.group(1))
+            minute = am_pm_match.group(2)
+            second = am_pm_match.group(3) or '00'
+            am_pm = am_pm_match.group(4).lower()
+            
+            # Adjust hour for 24-hour format
+            if am_pm == 'pm' and hour < 12:
+                hour += 12
+            elif am_pm == 'am' and hour == 12:
+                hour = 0
+                
+            return f"{hour:02d}:{minute}:{second}"
+            
+        # If we get here, no format matched
+        raise ValueError("Invalid time format. Supported formats include: HH:MM:SS, HH:MM, HHMM, and 12-hour format (e.g., 2:30 PM).")
     
     @model_validator(mode='after')
     def validate_location_data(self):

@@ -222,4 +222,51 @@ To deploy this API in production, ensure the following:
 
 4. **Testing**
    - Ensure all endpoints work with both coordinate and place-based input.
-   - Check logs for any warnings or errors. 
+   - Check logs for any warnings or errors.
+
+## ChatGPT Actions Integration
+
+This API is specially designed for seamless integration with ChatGPT Actions, allowing your LLM applications to perform Vedic astrology calculations based on user inputs.
+
+### How It Works
+
+1. When a user asks a question related to Vedic astrology (e.g., "What's my rising sign? I was born on June 15, 1990 at 3:45 PM in Chicago"), ChatGPT can:
+   - Extract the birth date, time, and place from the natural language query
+   - Format these details appropriately for the API
+   - Call the relevant endpoint to calculate the requested astrological information
+   - Present the results in a user-friendly manner
+
+### API Features for ChatGPT
+
+- **Flexible Input Formats**: Accepts various date and time formats (e.g., "June 15, 1990", "3:45 PM")
+- **Place-based Geocoding**: Use natural location names (cities, countries) instead of requiring latitude/longitude
+- **Comprehensive Endpoints**: Calculate ascendants, planetary positions, divisional charts, and more
+- **Standardized Responses**: Clean, well-structured JSON responses for easy parsing by LLMs
+
+### Example Integration
+
+```js
+// Example of how to use the API with ChatGPT Actions
+const userQuery = "What's my rising sign? I was born on June 15, 1990 at 3:45 PM in Chicago";
+
+// ChatGPT extracts information from the query
+const birthData = {
+  birth_date: "1990-06-15",  // Parsed from "June 15, 1990"
+  birth_time: "15:45:00",    // Parsed from "3:45 PM" 
+  place: "Chicago, USA"      // Extracted from query
+};
+
+// ChatGPT calls the API
+const response = await fetch("https://jai-api.onrender.com/v1/api/horoscope/ascendant", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(birthData)
+});
+
+const result = await response.json();
+// ChatGPT can now interpret and explain the results to the user
+```
+
+### OpenAPI Specification
+
+The API includes a detailed OpenAPI specification (`gpt.yaml`) that documents all endpoints, request formats, and response structures. This specification can be used to register the API as a ChatGPT Action. 

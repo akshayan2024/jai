@@ -1,7 +1,19 @@
 openapi: 3.1.0
 info:
   title: JAI - Jyotish Astrological Interpretation API
-  description: Comprehensive API for Vedic astrological calculations based on the Swiss Ephemeris, providing ascendants, natal charts, all divisional charts (D1-D60), mahadasha periods, antardashas, nakshatra positions, planetary aspects, yogas, and more.
+  description: |
+    Comprehensive API for Vedic astrological calculations based on the Swiss Ephemeris, designed specifically for integration with ChatGPT Actions.
+    
+    **Key Features:**
+    - Natural language date/time/place input support
+    - Comprehensive astrological calculations including ascendants, natal charts, and divisional charts
+    - Mahadasha periods, antardashas, nakshatra positions, and planetary aspects
+    - Flexible input formats that work well with how users naturally communicate with AI assistants
+    
+    **ChatGPT Integration Tips:**
+    - You can extract birth date, time and place from natural language user inputs
+    - The API will handle geocoding of place names to coordinates and timezone
+    - Pass the structured data to the appropriate endpoints
   version: 1.0.0
 servers:
   - url: https://jai-api.onrender.com
@@ -54,7 +66,22 @@ paths:
   /v1/api/ascendant:
     post:
       operationId: calculateAscendant
-      summary: Calculate ascendant based on birth data
+      summary: Calculate rising sign (ascendant) based on birth data
+      description: |
+        Calculate the person's rising sign (ascendant) based on their birth details.
+        
+        **ChatGPT Integration Example:**
+        
+        When a user says: "What's my rising sign? I was born on August 15, 1990 at 10:30 PM in New York City"
+        
+        Extract the birth details and make a call to this endpoint with:
+        ```json
+        {
+          "birth_date": "1990-08-15",
+          "birth_time": "22:30:00",
+          "place": "New York City, USA"
+        }
+        ```
       tags:
         - Basic Calculations
       requestBody:
@@ -85,7 +112,22 @@ paths:
   /v1/api/horoscope:
     post:
       operationId: getHoroscope
-      summary: Generate a Vedic horoscope based on birth data
+      summary: Generate a complete Vedic horoscope based on birth data
+      description: |
+        Generate a complete Vedic astrology horoscope with planets, houses, and dashas.
+        
+        **ChatGPT Integration Example:**
+        
+        When a user says: "Generate my birth chart. I was born on June 12, 1985 at 3:45 AM in Mumbai, India"
+        
+        Extract the birth details and make a call to this endpoint with:
+        ```json
+        {
+          "birth_date": "1985-06-12",
+          "birth_time": "03:45:00",
+          "place": "Mumbai, India"
+        }
+        ```
       tags:
         - Horoscope
       requestBody:
@@ -540,27 +582,41 @@ components:
         birth_date:
           type: string
           format: date
-          description: Date of birth in YYYY-MM-DD format
+          description: |
+            Date of birth in YYYY-MM-DD format. 
+            For ChatGPT integration, you can parse various date formats from user input and convert to this standard format.
           example: "1990-01-15"
         birth_time:
           type: string
-          description: Time of birth in HH:MM:SS format (24h)
+          description: |
+            Time of birth in HH:MM:SS format (24h).
+            For ChatGPT integration, parse time formats like "3:30 PM", "15:30", "3:30 in the afternoon", etc., and convert to 24h format.
           example: "14:30:00"
         latitude:
           type: number
-          description: Birth latitude (-90 to +90). Required if 'place' is not provided.
+          description: |
+            Birth latitude (-90 to +90). Required if 'place' is not provided.
+            For ChatGPT integration, prefer using the 'place' field instead, as it's more natural for users.
           example: 28.6139
         longitude:
           type: number
-          description: Birth longitude (-180 to +180). Required if 'place' is not provided.
+          description: |
+            Birth longitude (-180 to +180). Required if 'place' is not provided.
+            For ChatGPT integration, prefer using the 'place' field instead, as it's more natural for users.
           example: 77.2090
         timezone_offset:
           type: number
-          description: Time zone offset from UTC in hours. Required if 'place' is not provided.
+          description: |
+            Time zone offset from UTC in hours. Required if 'place' is not provided.
+            For ChatGPT integration, prefer using the 'place' field as the API will determine the timezone automatically.
           example: 5.5
         place:
           type: string
-          description: Optional place name (city, address, etc.) to geocode if latitude/longitude/timezone_offset are not provided. If both are provided, coordinates take precedence.
+          description: |
+            Place name (city, country, etc.) to geocode. 
+            For ChatGPT integration, this is the recommended approach as users typically specify location by name.
+            The API will automatically geocode this to get coordinates and timezone.
+            Examples: "New York, USA", "Mumbai, India", "Paris, France"
           example: "Chennai, India"
         ayanamsa:
           type: string
