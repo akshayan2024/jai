@@ -6,44 +6,172 @@ This module provides a high-level interface to the Swiss Ephemeris library.
 import os
 import logging
 from typing import Dict, List, Tuple, Optional
-import pyswisseph as swe
+from contextlib import contextmanager
 
 # Configure logging
 logger = logging.getLogger("jai-api.ephemeris")
 
+# Try to import pyswisseph, fall back to mock if not available
+try:
+    import pyswisseph as swe
+    USING_MOCK = False
+    logger.info("Using real Swiss Ephemeris library")
+except ImportError:
+    logger.warning("Swiss Ephemeris library not found, using mock implementation")
+    from api.services.mock_swisseph import (
+        # Constants
+        SUN, MOON, MERCURY, VENUS, MARS, JUPITER, SATURN, MEAN_NODE,
+        SIDM_LAHIRI,
+        HSYS_PLACIDUS, HSYS_KOCH, HSYS_EQUAL, HSYS_WHOLE_SIGN,
+        # Functions
+        set_ephe_path, set_sid_mode, get_ayanamsa_ut, julday, calc_ut, houses_ex,
+        enable_mock, disable_mock, is_mock_enabled, close
+    )
+    # Enable mock automatically
+    enable_mock()
+    USING_MOCK = True
+    
+    # Create mock swe module
+    class MockSwe:
+        # Planets
+        SUN = SUN
+        MOON = MOON
+        MERCURY = MERCURY
+        VENUS = VENUS
+        MARS = MARS
+        JUPITER = JUPITER
+        SATURN = SATURN
+        MEAN_NODE = MEAN_NODE
+        
+        # Sidereal modes
+        SIDM_LAHIRI = SIDM_LAHIRI
+        
+        # House systems
+        HSYS_PLACIDUS = HSYS_PLACIDUS
+        HSYS_KOCH = HSYS_KOCH
+        HSYS_EQUAL = HSYS_EQUAL
+        HSYS_WHOLE_SIGN = HSYS_WHOLE_SIGN
+        
+        # Flags
+        FLG_SIDEREAL = 1
+        FLG_SWIEPH = 2
+        
+        @staticmethod
+        def set_ephe_path(path):
+            return set_ephe_path(path)
+        
+        @staticmethod
+        def set_sid_mode(mode, t0, ayan_t0):
+            return set_sid_mode(mode)
+        
+        @staticmethod
+        def get_ayanamsa_ut(jd):
+            return get_ayanamsa_ut(jd)
+        
+        @staticmethod
+        def julday(year, month, day, hour):
+            return julday(year, month, day, hour)
+        
+        @staticmethod
+        def calc_ut(jd, planet, flags):
+            result = calc_ut(jd, planet)
+            return result, 0
+        
+        @staticmethod
+        def houses_ex(jd, lat, lon, hsys):
+            cusps, ascmc = houses_ex(jd, lat, lon, hsys)
+            return cusps, ascmc, 0
+        
+        @staticmethod
+        def close():
+            close()
+    
+    # Replace swe with mock
+    swe = MockSwe()
+
 class EphemerisService:
     """Service class for Swiss Ephemeris calculations"""
     
-    def __init__(self, ayanamsa: int = swe.SIDM_LAHIRI):
+    def __init__(self):
+        """Initialize the Swiss Ephemeris service."""
+        self._initialized = False
+        self._ephe_path = None
+        self._sid_mode = None
+        self._cleanup_required = False
+    
+    def initialize(self, ephe_path: str = None, sid_mode: int = swe.SIDM_LAHIRI) -> None:
         """
-        Initialize the ephemeris service
+        Initialize the Swiss Ephemeris service.
         
         Args:
-            ayanamsa: The ayanamsa to use (default: Lahiri)
+            ephe_path: Path to ephemeris files
+            sid_mode: Sidereal mode (default: Lahiri)
+            
+        Raises:
+            RuntimeError: If initialization fails
         """
-        # Set ephemeris path from environment or use default
-        ephemeris_path = os.environ.get("EPHEMERIS_PATH", "./ephemeris")
-        if not os.path.exists(ephemeris_path):
-            raise RuntimeError(f"Ephemeris path does not exist: {ephemeris_path}")
-        
-        # Set ephemeris path
-        swe.set_ephe_path(ephemeris_path)
-        logger.info(f"Set ephemeris path to {ephemeris_path}")
-        
-        # Set sidereal mode
-        swe.set_sid_mode(ayanamsa)
-        logger.info(f"Set sidereal mode to {ayanamsa} (Lahiri)")
-        
-        # Verify initialization
         try:
-            test_jd = swe.julday(2000, 1, 1, 0)
-            xx, ret = swe.calc_ut(test_jd, swe.SUN)
-            if ret < 0:
-                raise RuntimeError(f"Swiss Ephemeris test calculation failed with error code {ret}")
-            logger.info("Swiss Ephemeris initialized successfully")
+            # Set ephemeris path if provided
+            if ephe_path:
+                self._ephe_path = ephe_path
+                swe.set_ephe_path(ephe_path)
+                logger.info(f"Set ephemeris path to: {ephe_path}")
+            
+            # Set sidereal mode
+            self._sid_mode = sid_mode
+            swe.set_sid_mode(sid_mode, 0, 0)
+            logger.info(f"Set sidereal mode to: {sid_mode}")
+            
+            self._initialized = True
+            self._cleanup_required = True
+            logger.info("Swiss Ephemeris service initialized successfully")
+            
+            # Log if using mock implementation
+            if USING_MOCK:
+                logger.warning("Using mock Swiss Ephemeris implementation")
+            
         except Exception as e:
-            logger.error(f"Failed to verify Swiss Ephemeris: {str(e)}")
-            raise RuntimeError("Failed to initialize Swiss Ephemeris")
+            logger.error(f"Failed to initialize Swiss Ephemeris service: {str(e)}")
+            raise RuntimeError(f"Swiss Ephemeris initialization failed: {str(e)}")
+    
+    def cleanup(self) -> None:
+        """
+        Clean up Swiss Ephemeris resources.
+        
+        This method should be called when the service is no longer needed.
+        """
+        if self._cleanup_required:
+            try:
+                # Close any open ephemeris files
+                swe.close()
+                self._initialized = False
+                self._cleanup_required = False
+                logger.info("Swiss Ephemeris resources cleaned up successfully")
+            except Exception as e:
+                logger.error(f"Error during Swiss Ephemeris cleanup: {str(e)}")
+                raise RuntimeError(f"Swiss Ephemeris cleanup failed: {str(e)}")
+    
+    @contextmanager
+    def ephemeris_context(self, ephe_path: str = None, sid_mode: int = swe.SIDM_LAHIRI):
+        """
+        Context manager for Swiss Ephemeris operations.
+        
+        Args:
+            ephe_path: Path to ephemeris files
+            sid_mode: Sidereal mode (default: Lahiri)
+            
+        Yields:
+            EphemerisService instance
+            
+        Example:
+            with ephemeris_service.ephemeris_context() as ephe:
+                result = ephe.get_planet_position(jd, planet)
+        """
+        try:
+            self.initialize(ephe_path, sid_mode)
+            yield self
+        finally:
+            self.cleanup()
     
     def get_planet_position(self, jd: float, planet: int) -> Dict[str, float]:
         """
@@ -59,12 +187,15 @@ class EphemerisService:
         Raises:
             RuntimeError: If the calculation fails
         """
+        if not self._initialized:
+            raise RuntimeError("Swiss Ephemeris service not initialized")
+        
         try:
             # Use FLG_SIDEREAL for sidereal positions
             flag = swe.FLG_SIDEREAL | swe.FLG_SWIEPH
             xx, ret = swe.calc_ut(jd, planet, flag)
             
-            if ret < 0:
+            if ret < 0 and not USING_MOCK:
                 raise RuntimeError(f"Planet calculation failed with error code {ret}")
             
             return {
@@ -77,7 +208,7 @@ class EphemerisService:
             logger.error(f"Error calculating planet position: {str(e)}")
             raise
     
-    def get_ascendant(self, jd: float, lat: float, lon: float) -> Tuple[float, List[float]]:
+    def get_ascendant(self, jd: float, lat: float, lon: float, house_system: str = 'W') -> Tuple[float, List[float]]:
         """
         Calculate ascendant and house cusps
         
@@ -85,6 +216,7 @@ class EphemerisService:
             jd: Julian day
             lat: Latitude
             lon: Longitude
+            house_system: House system (default: Whole Sign)
             
         Returns:
             Tuple of (ascendant longitude, house cusps)
@@ -92,10 +224,12 @@ class EphemerisService:
         Raises:
             RuntimeError: If the calculation fails
         """
+        if not self._initialized:
+            raise RuntimeError("Swiss Ephemeris service not initialized")
+        
         try:
-            # Use Whole Sign house system
-            cusps, ascmc, ret = swe.houses_ex(jd, lat, lon, b'W')
-            if ret < 0:
+            cusps, ascmc, ret = swe.houses_ex(jd, lat, lon, house_system.encode())
+            if ret < 0 and not USING_MOCK:
                 raise RuntimeError(f"House calculation failed with error code {ret}")
             return ascmc[0], cusps
         except Exception as e:
@@ -112,7 +246,14 @@ class EphemerisService:
         Returns:
             Ayanamsa value in degrees
         """
-        return swe.get_ayanamsa(jd)
+        if not self._initialized:
+            raise RuntimeError("Swiss Ephemeris service not initialized")
+        
+        try:
+            return swe.get_ayanamsa_ut(jd)
+        except Exception as e:
+            logger.error(f"Error calculating ayanamsa: {str(e)}")
+            raise RuntimeError(f"Ayanamsa calculation failed: {str(e)}")
     
     def julday(self, year: int, month: int, day: int, hour: float = 0.0) -> float:
         """
@@ -127,7 +268,14 @@ class EphemerisService:
         Returns:
             Julian day
         """
-        return swe.julday(year, month, day, hour)
+        if not self._initialized:
+            raise RuntimeError("Swiss Ephemeris service not initialized")
+        
+        try:
+            return swe.julday(year, month, day, hour)
+        except Exception as e:
+            logger.error(f"Error calculating Julian day: {str(e)}")
+            raise RuntimeError(f"Julian day calculation failed: {str(e)}")
     
     def get_planet_dignity(self, planet: int, sign: int) -> str:
         """

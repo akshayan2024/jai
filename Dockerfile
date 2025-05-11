@@ -1,6 +1,7 @@
-# Build stage
+# Use Python 3.9 slim as base image
 FROM python:3.9-slim as builder
 
+# Set working directory
 WORKDIR /app
 
 # Install build dependencies
@@ -10,51 +11,50 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy requirements file
 COPY requirements.txt .
+
+# Build wheels
 RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
 # Final stage
-FROM python:3.9-slim
+FROM python:3.9-slim as api
 
 # Create non-root user
 RUN useradd -m appuser
 
+# Set working directory
 WORKDIR /app
 
-# Install runtime dependencies for Swiss Ephemeris
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     python3-dev \
     gcc \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy wheels from builder stage
+# Copy wheels from builder
 COPY --from=builder /app/wheels /app/wheels
+
+# Install Python packages
 RUN pip install --no-cache-dir /app/wheels/*
 
-# Install pyswisseph directly
-RUN pip install --no-cache-dir pyswisseph==2.10.3.2
+# Install pyswisseph directly from PyPI
+RUN pip install --no-cache-dir --no-binary :all: pyswisseph==2.10.3.2
 
 # Copy application code
 COPY . .
 
-# Create ephemeris directory and ensure it exists
-RUN mkdir -p /app/ephemeris
-
-# Copy ephemeris files from local directory
-# The files should be downloaded first using download_ephemeris.sh
-COPY ./ephemeris/* /app/ephemeris/
-
-# Change ownership to non-root user
-RUN chown -R appuser:appuser /app
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV EPHEMERIS_PATH=/usr/local/lib/python3.9/site-packages/pyswisseph/ephe
+ENV ENV=production
 
 # Switch to non-root user
 USER appuser
 
-# Expose API port
+# Expose port
 EXPOSE 8000
 
-# Start application
+# Run the application
 CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8000"] 

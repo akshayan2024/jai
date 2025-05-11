@@ -10,6 +10,9 @@ from api.services.yoga_calculations import YogaCalculator
 from api.services.dasha_calculations import DashaCalculator
 from api.services.aspect_calculations import AspectCalculator
 from api.services.ephemeris_service import ephemeris_service
+from api.utils.input_validation import validate_extreme_latitude
+import os
+from datetime import timedelta
 
 # Configure logging
 logger = logging.getLogger("jai-api.astrological")
@@ -25,6 +28,7 @@ class AstrologicalCalculator:
         self.yoga_calculator = YogaCalculator()
         self.dasha_calculator = DashaCalculator()
         self.aspect_calculator = AspectCalculator()
+        self.ephemeris_path = os.environ.get("EPHEMERIS_PATH", "./ephemeris")
         
     def calculate_ascendant(self, birth_data: BirthData) -> HousePosition:
         """Calculate the ascendant (Lagna) for given birth data"""
@@ -254,4 +258,218 @@ class AstrologicalCalculator:
             if house_number < 1 or house_number > 12:
                 logger.warning(f"Invalid house number {house_number} for planet {planet.planet}")
             elif planet not in houses[house_number-1].planets:
-                logger.warning(f"Planet {planet.planet} not assigned to house {house_number}") 
+                logger.warning(f"Planet {planet.planet} not assigned to house {house_number}")
+
+    def calculate_horoscope(
+        self,
+        date: datetime,
+        latitude: float,
+        longitude: float,
+        house_system: str = 'W',
+        ayanamsa: int = 1
+    ) -> Dict:
+        """
+        Calculate a complete horoscope.
+        
+        Args:
+            date: Date and time
+            latitude: Latitude
+            longitude: Longitude
+            house_system: House system (default: Whole Sign)
+            ayanamsa: Ayanamsa to use (default: Lahiri)
+            
+        Returns:
+            Dictionary containing horoscope data
+        """
+        # Validate extreme latitude
+        validate_extreme_latitude(latitude)
+        
+        with ephemeris_service.ephemeris_context(
+            ephe_path=self.ephemeris_path,
+            sid_mode=ayanamsa
+        ) as ephe:
+            try:
+                # Calculate Julian day
+                jd = ephe.julday(
+                    date.year,
+                    date.month,
+                    date.day,
+                    date.hour + date.minute / 60.0
+                )
+                
+                # Calculate houses
+                cusps, ascmc = ephe.get_ascendant(jd, latitude, longitude, house_system)
+                
+                # Calculate planet positions
+                planets = []
+                for planet in range(10):  # Sun through Rahu
+                    pos = ephe.get_planet_position(jd, planet)
+                    planets.append({
+                        'planet': planet,
+                        'longitude': pos[0],
+                        'latitude': pos[1],
+                        'distance': pos[2],
+                        'speed': pos[3]
+                    })
+                
+                return {
+                    'ascendant': ascmc[0],
+                    'mc': ascmc[1],
+                    'armc': ascmc[2],
+                    'vertex': ascmc[3],
+                    'equatorial_ascendant': ascmc[4],
+                    'house_cusps': cusps,
+                    'planets': planets
+                }
+                
+            except Exception as e:
+                logger.error(f"Error calculating horoscope: {str(e)}")
+                raise RuntimeError(f"Horoscope calculation failed: {str(e)}")
+    
+    def calculate_transits(
+        self,
+        birth_date: datetime,
+        latitude: float,
+        longitude: float,
+        start_date: datetime,
+        end_date: datetime,
+        house_system: str = 'W',
+        ayanamsa: int = 1
+    ) -> List[Dict]:
+        """
+        Calculate planetary transits for a period.
+        
+        Args:
+            birth_date: Birth date and time
+            latitude: Latitude
+            longitude: Longitude
+            start_date: Start date for transits
+            end_date: End date for transits
+            house_system: House system (default: Whole Sign)
+            ayanamsa: Ayanamsa to use (default: Lahiri)
+            
+        Returns:
+            List of transit events
+        """
+        with ephemeris_service.ephemeris_context(
+            ephe_path=self.ephemeris_path,
+            sid_mode=ayanamsa
+        ) as ephe:
+            try:
+                # Calculate birth chart
+                birth_jd = ephe.julday(
+                    birth_date.year,
+                    birth_date.month,
+                    birth_date.day,
+                    birth_date.hour + birth_date.minute / 60.0
+                )
+                birth_cusps, birth_ascmc = ephe.get_ascendant(
+                    birth_jd,
+                    latitude,
+                    longitude,
+                    house_system
+                )
+                
+                # Calculate transits
+                transits = []
+                current_date = start_date
+                while current_date <= end_date:
+                    transit_jd = ephe.julday(
+                        current_date.year,
+                        current_date.month,
+                        current_date.day,
+                        current_date.hour + current_date.minute / 60.0
+                    )
+                    
+                    # Calculate transit positions
+                    for planet in range(10):
+                        pos = ephe.get_planet_position(transit_jd, planet)
+                        transits.append({
+                            'date': current_date,
+                            'planet': planet,
+                            'longitude': pos[0],
+                            'latitude': pos[1],
+                            'distance': pos[2],
+                            'speed': pos[3]
+                        })
+                    
+                    current_date += timedelta(days=1)
+                
+                return transits
+                
+            except Exception as e:
+                logger.error(f"Error calculating transits: {str(e)}")
+                raise RuntimeError(f"Transit calculation failed: {str(e)}")
+    
+    def calculate_progressions(
+        self,
+        birth_date: datetime,
+        latitude: float,
+        longitude: float,
+        start_date: datetime,
+        end_date: datetime,
+        house_system: str = 'W',
+        ayanamsa: int = 1
+    ) -> List[Dict]:
+        """
+        Calculate secondary progressions for a period.
+        
+        Args:
+            birth_date: Birth date and time
+            latitude: Latitude
+            longitude: Longitude
+            start_date: Start date for progressions
+            end_date: End date for progressions
+            house_system: House system (default: Whole Sign)
+            ayanamsa: Ayanamsa to use (default: Lahiri)
+            
+        Returns:
+            List of progression events
+        """
+        with ephemeris_service.ephemeris_context(
+            ephe_path=self.ephemeris_path,
+            sid_mode=ayanamsa
+        ) as ephe:
+            try:
+                # Calculate birth chart
+                birth_jd = ephe.julday(
+                    birth_date.year,
+                    birth_date.month,
+                    birth_date.day,
+                    birth_date.hour + birth_date.minute / 60.0
+                )
+                
+                # Calculate progressions
+                progressions = []
+                current_date = start_date
+                while current_date <= end_date:
+                    # Calculate progressed date (1 day = 1 year)
+                    years = (current_date - birth_date).days / 365.25
+                    progressed_date = birth_date + timedelta(days=years)
+                    
+                    progressed_jd = ephe.julday(
+                        progressed_date.year,
+                        progressed_date.month,
+                        progressed_date.day,
+                        progressed_date.hour + progressed_date.minute / 60.0
+                    )
+                    
+                    # Calculate progressed positions
+                    for planet in range(10):
+                        pos = ephe.get_planet_position(progressed_jd, planet)
+                        progressions.append({
+                            'date': current_date,
+                            'planet': planet,
+                            'longitude': pos[0],
+                            'latitude': pos[1],
+                            'distance': pos[2],
+                            'speed': pos[3]
+                        })
+                    
+                    current_date += timedelta(days=1)
+                
+                return progressions
+                
+            except Exception as e:
+                logger.error(f"Error calculating progressions: {str(e)}")
+                raise RuntimeError(f"Progression calculation failed: {str(e)}") 

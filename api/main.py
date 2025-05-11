@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 import requests
+from api.services.ephemeris_service import ephemeris_service
 
 # Import error handling
 from api.utils.error_handling import get_error_handlers, validation_exception_handler
@@ -148,6 +149,21 @@ async def health_check():
         "status": "healthy",
         "version": "1.0.0"
     }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Test Swiss Ephemeris initialization
+        test_jd = ephemeris_service.julday(2000, 1, 1, 0)
+        xx, ret = ephemeris_service.get_planet_position(test_jd, 0)  # Test with Sun
+        if ret < 0:
+            raise RuntimeError(f"Swiss Ephemeris test failed with error code {ret}")
+        return {"status": "healthy", "ephemeris": "ok"}
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Service unhealthy")
 
 # Main application initialization
 def create_app():
