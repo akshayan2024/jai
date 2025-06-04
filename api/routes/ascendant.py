@@ -19,43 +19,42 @@ async def get_ascendant(request: HoroscopeRequest):
     """
     Calculate the ascendant (lagna) based on birth details
     
-    **PREFERRED METHOD**: Provide only the `place` field
+    **Request Format**:
     ```json
     {
       "birth_date": "1990-01-01",
       "birth_time": "12:30:00",
-      "place": "Chennai, India", 
+      "place": "Chennai, India",
       "ayanamsa": "lahiri"
     }
     ```
     
-    **ALTERNATIVE METHOD**: Provide all location fields manually
-    ```json
-    {
-      "birth_date": "1990-01-01",
-      "birth_time": "12:30:00",
-      "latitude": 13.0827,
-      "longitude": 80.2707,
-      "timezone_offset": 5.5,
-      "ayanamsa": "lahiri"
-    }
-    ```
-    
-    The place-based input method is strongly recommended as it simplifies the API usage
-    and ensures consistent coordinate and timezone determination.
+    The API will automatically determine the coordinates and timezone from the provided place name.
     """
     try:
         # Calculate the ascendant
-        logger.info(f"Calculating ascendant for {request.birth_date} {request.birth_time} at {request.latitude}, {request.longitude}")
+        logger.info(f"Calculating ascendant for {request.birth_date} {request.birth_time} in {request.place}")
+        logger.debug(f"Using coordinates: {request.latitude}, {request.longitude}, timezone: {request.timezone_offset}")
         
-        ascendant = calculation.calculate_ascendant(
-            birth_date=request.birth_date,
-            birth_time=request.birth_time,
-            latitude=request.latitude,
-            longitude=request.longitude,
-            timezone_offset=request.timezone_offset,
-            ayanamsa=request.ayanamsa
-        )
+        try:
+            ascendant = calculation.calculate_ascendant(
+                birth_date=request.birth_date,
+                birth_time=request.birth_time,
+                latitude=request.latitude,
+                longitude=request.longitude,
+                timezone_offset=request.timezone_offset,
+                ayanamsa=request.ayanamsa
+            )
+        except Exception as e:
+            logger.error(f"Error in ascendant calculation: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_code": "CALCULATION_ERROR",
+                    "error_message": "Failed to calculate ascendant. Please check your input parameters.",
+                    "details": str(e)
+                }
+            )
         
         # Prepare the standardized response
         response = AscendantResponse(
@@ -80,17 +79,25 @@ async def get_ascendant(request: HoroscopeRequest):
         logger.error(f"Error calculating ascendant: {str(e)}", exc_info=True)
         
         # Raise a proper HTTP exception
+        # For validation errors, return 422 with details
+        if isinstance(e, ValueError):
+            status_code = 422
+            error_code = "VALIDATION_ERROR"
+        else:
+            status_code = 500
+            error_code = "INTERNAL_SERVER_ERROR"
+            
         raise HTTPException(
-            status_code=500, 
+            status_code=status_code,
             detail={
-                "error_code": "ASCENDANT_CALCULATION_ERROR",
-                "error_message": f"Error calculating ascendant: {str(e)}",
+                "error_code": error_code,
+                "error_message": str(e),
                 "details": {
                     "request": {
                         "birth_date": request.birth_date,
                         "birth_time": request.birth_time,
-                        "latitude": request.latitude,
-                        "longitude": request.longitude
+                        "place": request.place,
+                        "ayanamsa": request.ayanamsa
                     }
                 }
             }

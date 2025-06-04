@@ -44,10 +44,12 @@ jai/
 │   └── utils/              # Utility functions
 │       ├── error_handling.py # Error handling utilities
 │       └── input_parser.py   # Input parsing utilities
-├── constants/              # Astrological constants
+├── api/
+│   └── constants/        # Core astrological constants
+│       ├── nakshatras.py   # Consolidated nakshatra definitions and utilities
+├── constants/              # Legacy astrological constants (deprecated)
 │   ├── __init__.py         # Constants initialization
 │   ├── zodiac_signs.py     # Zodiac sign constants
-│   ├── nakshatras.py       # Nakshatra constants
 │   └── divisional_mappings/ # Divisional chart mappings
 ├── docs/                   # Documentation
 │   ├── USER_STORIES.md     # User stories

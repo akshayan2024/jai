@@ -66,16 +66,52 @@ The JAI API is structured as a modular, service-oriented application built on Fa
 **Key Components**:
 - `constants/zodiac_signs.py`: Zodiac sign definitions
 - `constants/planets.py`: Planet definitions
-- `constants/nakshatras.py`: Nakshatra definitions
+- `api/constants/nakshatras.py`: Consolidated nakshatra definitions and utilities
 - `constants/ayanamsa.py`: Ayanamsa definitions
 - `constants/dasha_years.py`: Mahadasha period definitions
 - `constants/divisional_mappings/`: Divisional chart mapping constants
 - `config.py`: Application configuration
 
+**Nakshatra Constants Structure**:
+
+```python
+# Centralized nakshatra data structure
+NAKSHATRAS: Dict[int, NakshatraData] = {
+    1: {
+        'name': 'Ashwini',
+        'lord': 'ketu',
+        'start_deg': 0.0,
+        'end_deg': 13.3333,
+        'pada_length': 3.3333
+    },
+    # ... other nakshatras
+}
+```
+
 **Design Patterns**:
 - Immutable constants
 - Single source of truth
 - Constants caching for performance
+- Derived values computed from source data
+- Type hints for better IDE support and code clarity
+
+**Key Functions**:
+- `get_nakshatra_index(longitude)`: Calculate nakshatra from zodiacal longitude
+- `get_nakshatra_name(index)`: Get nakshatra name by index (1-27)
+- `get_nakshatra_lord(index)`: Get ruling planet of a nakshatra
+- `get_nakshatra_pada(longitude)`: Calculate pada (1-4) within a nakshatra
+- `get_degrees_in_nakshatra(longitude)`: Get degrees within current nakshatra
+
+**Usage Example**:
+```python
+# Get nakshatra information for a given longitude
+longitude = 23.5  # degrees
+nakshatra_idx = get_nakshatra_index(longitude)
+name = get_nakshatra_name(nakshatra_idx)
+lord = get_nakshatra_lord(nakshatra_idx)
+pada = get_nakshatra_pada(longitude)
+degrees = get_degrees_in_nakshatra(longitude)
+```
 
 ### 4. Utilities
 

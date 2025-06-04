@@ -312,7 +312,7 @@ def calculate_ascendant(
         set_ayanamsa(ayanamsa)
         
         # Calculate houses
-        houses_cusps, ascmc = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
+        houses_cusps, ascmc, _ = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
         
         # Get ascendant longitude (sidereal, with ayanamsa adjustment)
         asc_longitude = ascmc[0] - swe.get_ayanamsa(julian_day)
@@ -416,7 +416,7 @@ def calculate_planets(
         set_ayanamsa(ayanamsa)
         
         # Calculate ascendant first
-        houses_cusps, ascmc = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
+        houses_cusps, ascmc, _ = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
         
         # Get ascendant longitude with ayanamsa correction
         asc_longitude = ascmc[0] - swe.get_ayanamsa(julian_day)
@@ -501,7 +501,7 @@ def calculate_houses(
         set_ayanamsa(ayanamsa)
         
         # Calculate houses
-        houses_cusps, ascmc = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
+        houses_cusps, ascmc, _ = swe.houses_ex(julian_day, latitude, longitude, HOUSE_SYSTEM)
         
         # Get ascendant longitude with ayanamsa correction
         asc_longitude = ascmc[0] - swe.get_ayanamsa(julian_day)

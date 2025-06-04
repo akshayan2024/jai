@@ -17,10 +17,21 @@ def load_all_constants():
     _CONSTANTS_CACHE['planet_names'] = PLANET_NAMES
     _CONSTANTS_CACHE['swe_code_to_planet'] = SWE_CODE_TO_PLANET
     
-    # Load nakshatras
-    from .nakshatras import NAKSHATRAS, get_nakshatra_from_longitude
+    # Load nakshatras from API constants
+    from api.constants.nakshatras import (
+        NAKSHATRAS, 
+        get_nakshatra_from_longitude,
+        get_nakshatra_name,
+        get_nakshatra_lord,
+        get_nakshatra_pada,
+        get_degrees_in_nakshatra
+    )
     _CONSTANTS_CACHE['nakshatras'] = NAKSHATRAS
     _CONSTANTS_CACHE['get_nakshatra_from_longitude'] = get_nakshatra_from_longitude
+    _CONSTANTS_CACHE['get_nakshatra_name'] = get_nakshatra_name
+    _CONSTANTS_CACHE['get_nakshatra_lord'] = get_nakshatra_lord
+    _CONSTANTS_CACHE['get_nakshatra_pada'] = get_nakshatra_pada
+    _CONSTANTS_CACHE['get_degrees_in_nakshatra'] = get_degrees_in_nakshatra
     
     # Load dasha years
     from .dasha_years import DASHA_YEARS, TOTAL_DASHA_YEARS, NAKSHATRA_LORDS

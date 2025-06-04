@@ -67,7 +67,8 @@ def save_cache(cache_data: dict, cache_file: Path):
 @lru_cache(maxsize=100)
 def geocode_place(place_name: str, max_retries=2, retry_delay=1) -> dict:
     """
-    Geocode a place name to get coordinates using OpenStreetMap Nominatim API with caching
+    Geocode a place name to get coordinates using multiple geocoding services with fallback.
+    Tries OpenCage first if API key is available, then falls back to OpenStreetMap Nominatim.
     
     Args:
         place_name: The name of the place to geocode
@@ -75,107 +76,124 @@ def geocode_place(place_name: str, max_retries=2, retry_delay=1) -> dict:
         retry_delay: Delay between retries in seconds
         
     Returns:
-        Dictionary containing lat, lon and display_name
+        Dictionary containing lat, lon, display_name and source
         
     Raises:
-        ValueError: If geocoding fails after retries
+        ValueError: If geocoding fails after all retries and fallbacks
     """
-    if not place_name or not place_name.strip():
-        raise ValueError("Place name cannot be empty")
+    import time
+    import random
+    import requests
+    from urllib.parse import quote
+    import os
+    
+    # Clean and normalize the place name for caching
+    cache_key = place_name.lower().strip()
     
     # Check cache first
-    cache_key = place_name.strip().lower()
     if cache_key in GEOCODE_CACHE:
         logger.debug(f"Geocode cache hit for '{place_name}'")
         return GEOCODE_CACHE[cache_key]
     
-    logger.info(f"Geocoding place: '{place_name}'")
+    # User-Agent is required by Nominatim's usage policy
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15'
+    ]
     
-    # Prepare API request
+    headers = {
+        'User-Agent': random.choice(user_agents),
+        'Accept-Language': 'en-US,en;q=0.5'
+    }
+    
+    # Try OpenCage first if API key is available
+    opencage_api_key = os.environ.get("OPENCAGE_API_KEY")
+    if opencage_api_key:
+        try:
+            url = "https://api.opencagedata.com/geocode/v1/json"
+            params = {
+                "q": place_name,
+                "key": opencage_api_key,
+                "no_annotations": 1,
+                "limit": 1
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('results') and len(data['results']) > 0:
+                result = data['results'][0]
+                geo_data = {
+                    'lat': result['geometry']['lat'],
+                    'lon': result['geometry']['lng'],
+                    'display_name': result.get('formatted', place_name),
+                    'source': 'opencage'
+                }
+                
+                # Cache the result
+                GEOCODE_CACHE[cache_key] = geo_data
+                save_cache(GEOCODE_CACHE, GEO_CACHE_FILE)
+                logger.info(f"Geocoded '{place_name}' using OpenCage")
+                return geo_data
+                
+        except Exception as e:
+            logger.warning(f"OpenCage geocoding failed, falling back to Nominatim: {str(e)}")
+    
+    # Fall back to Nominatim if OpenCage fails or is not configured
     geocode_url = f"https://nominatim.openstreetmap.org/search"
     params = {
-        "q": place_name,
-        "format": "json",
-        "limit": "1",
-        "addressdetails": "1"  # Get address details for better verification
-    }
-    headers = {
-        "User-Agent": "JAI-API/1.0",
-        "Accept-Language": "en-US,en;q=0.9"
+        'q': place_name,
+        'format': 'json',
+        'addressdetails': 1,
+        'limit': 1
     }
     
-    # Try with retries
+    last_error = None
+    
     for attempt in range(max_retries + 1):
         try:
             response = requests.get(geocode_url, params=params, headers=headers, timeout=5)
+            response.raise_for_status()
             
-            # Check for rate limiting or server errors
-            if response.status_code == 429:
-                if attempt < max_retries:
-                    wait_time = retry_delay * (attempt + 1)
-                    logger.warning(f"Rate limited by geocoding service. Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    raise ValueError("Geocoding service rate limit exceeded. Please try again later.")
+            data = response.json()
             
-            if response.status_code >= 500:
-                if attempt < max_retries:
-                    wait_time = retry_delay * (attempt + 1)
-                    logger.warning(f"Geocoding service error ({response.status_code}). Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    raise ValueError(f"Geocoding service error: HTTP {response.status_code}")
+            if not data or not isinstance(data, list) or len(data) == 0:
+                last_error = f"No results found. Response: {response.text}"
+                raise ValueError("No results found")
+                
+            result = data[0]
             
-            # Handle non-200 responses
-            if response.status_code != 200:
-                raise ValueError(f"Geocoding request failed with status code: {response.status_code}")
-            
-            # Parse response
-            results = response.json()
-            
-            # Check if we got results
-            if not results:
-                raise ValueError(f"No geocoding results found for '{place_name}'")
-            
-            # Get coordinates and display name
-            place_data = results[0]
-            result = {
-                "lat": float(place_data["lat"]),
-                "lon": float(place_data["lon"]),
-                "display_name": place_data["display_name"]
+            # Format the result
+            geo_data = {
+                'lat': float(result['lat']),
+                'lon': float(result['lon']),
+                'display_name': result.get('display_name', place_name),
+                'source': 'nominatim'
             }
             
-            # Verify the data makes sense
-            if result["lat"] < -90 or result["lat"] > 90:
-                raise ValueError(f"Invalid latitude value: {result['lat']}")
-            if result["lon"] < -180 or result["lon"] > 180:
-                raise ValueError(f"Invalid longitude value: {result['lon']}")
-            
-            # Update cache
-            GEOCODE_CACHE[cache_key] = result
+            # Cache the result
+            GEOCODE_CACHE[cache_key] = geo_data
             save_cache(GEOCODE_CACHE, GEO_CACHE_FILE)
             
             logger.info(f"Successfully geocoded '{place_name}' to {result['lat']}, {result['lon']}")
-            return result
+            return geo_data
             
-        except requests.RequestException as e:
-            if attempt < max_retries:
-                wait_time = retry_delay * (attempt + 1)
-                logger.warning(f"Network error during geocoding. Retrying in {wait_time}s... Error: {str(e)}")
-                time.sleep(wait_time)
-            else:
-                logger.error(f"Geocoding failed after {max_retries + 1} attempts: {str(e)}")
-                raise ValueError(f"Network error during geocoding: {str(e)}")
-        
-        except (KeyError, IndexError) as e:
-            logger.error(f"Error parsing geocoding response: {str(e)}")
-            raise ValueError(f"Error processing geocoding results: {str(e)}")
-        
         except Exception as e:
-            logger.error(f"Unexpected error during geocoding: {str(e)}")
-            raise ValueError(f"Geocoding failed: {str(e)}")
+            last_error = e
+            if attempt < max_retries:
+                # Exponential backoff with jitter
+                sleep_time = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                logger.warning(f"Geocoding attempt {attempt + 1} failed, retrying in {sleep_time:.1f}s: {str(e)}")
+                time.sleep(sleep_time)
+    
+    # If we get here, all attempts failed
+    logger.error(f"Failed to geocode '{place_name}' after {max_retries + 1} attempts")
+    if last_error:
+        logger.error(f"Last error: {str(last_error)}")
+        raise ValueError(f"Could not determine coordinates for place: {place_name}. Last error: {str(last_error)}")
+    raise ValueError(f"Could not determine coordinates for place: {place_name}. Please check the place name and try again.")
 
 @lru_cache(maxsize=100)
 def get_timezone(lat: float, lon: float, max_retries=2, retry_delay=1) -> float:
@@ -280,14 +298,11 @@ def get_timezone(lat: float, lon: float, max_retries=2, retry_delay=1) -> float:
     return offset_hours
 
 class HoroscopeRequest(BaseModel):
-    """Base request model for horoscope data"""
-    birth_date: str = Field(..., description="Date of birth (YYYY-MM-DD)")
-    birth_time: str = Field(..., description="Time of birth (HH:MM:SS)")
-    place: Optional[str] = Field(None, description="Place name (city, country) - PREFERRED METHOD")
-    latitude: Optional[float] = Field(None, description="Latitude of birth place (alternative to place)")
-    longitude: Optional[float] = Field(None, description="Longitude of birth place (alternative to place)")
-    timezone_offset: Optional[float] = Field(None, description="Timezone offset in hours (alternative to place)")
-    ayanamsa: str = Field("lahiri", description="Ayanamsa system (lahiri, raman, krishnamurti, kp, jyotish_raman)")
+    """Request model for horoscope data using place-based geocoding"""
+    birth_date: str = Field(..., description="Date of birth (supports multiple formats like YYYY-MM-DD, DD-MM-YYYY, DD MMM YYYY, etc.)")
+    birth_time: str = Field(..., description="Time of birth (supports formats like HH:MM:SS, HH:MM, HHMM, 12-hour format with AM/PM)")
+    place: str = Field(..., description="Place name (city, country) - e.g., 'Chennai, India'")
+    ayanamsa: str = Field("lahiri", description="Ayanamsa system (default: lahiri). Options: lahiri, raman, krishnamurti, kp, jyotish_raman")
     
     @validator('birth_date')
     def validate_birth_date(cls, v):
@@ -369,53 +384,42 @@ class HoroscopeRequest(BaseModel):
         raise ValueError("Invalid time format. Supported formats include: HH:MM:SS, HH:MM, HHMM, and 12-hour format (e.g., 2:30 PM).")
     
     @model_validator(mode='after')
-    def validate_location_data(self):
-        """Ensure we have either place or complete coordinate data"""
-        if self.place:
-            # If place is provided, geocode it to get coordinates
-            if not all([self.latitude, self.longitude, self.timezone_offset]):
-                self._geocode_place()
-            return self
-        
-        # If no place, check if we have coordinates and timezone
-        if not all([self.latitude is not None, self.longitude is not None, self.timezone_offset is not None]):
-            missing = []
-            if self.latitude is None:
-                missing.append("latitude")
-            if self.longitude is None:
-                missing.append("longitude")
-            if self.timezone_offset is None:
-                missing.append("timezone_offset")
-            
-            raise ValueError(f"Place name is required (preferred) or all of {', '.join(missing)} must be provided")
-        
-        return self
-    
-    def _geocode_place(self):
-        """Get latitude, longitude and timezone from place name"""
+    def validate_and_geocode(self):
+        """Geocode the provided place name to get coordinates and timezone"""
         try:
             # Get coordinates from place name
             geo_data = geocode_place(self.place)
             self.latitude = geo_data["lat"]
             self.longitude = geo_data["lon"]
             
-            # Calculate timezone if not provided
-            if self.timezone_offset is None:
-                self.timezone_offset = get_timezone(self.latitude, self.longitude)
+            # Get timezone for the coordinates
+            self.timezone_offset = get_timezone(self.latitude, self.longitude)
+            
+            logger.info(f"Geocoded '{self.place}' to lat: {self.latitude}, lon: {self.longitude}, tz: {self.timezone_offset}")
+            return self
                 
         except Exception as e:
             # Log the error and raise a user-friendly message
             logger.error(f"Error geocoding place '{self.place}': {str(e)}")
-            raise ValueError(f"Could not determine coordinates for place: {self.place}. {str(e)}")
+            raise ValueError(f"Could not determine coordinates for place: {self.place}. Please check the place name and try again.")
 
 class TransitRequest(HoroscopeRequest):
-    """Request model for transit calculations"""
-    transit_date: str = Field(..., description="Transit date (YYYY-MM-DD)")
+    """
+    Request model for transit calculations.
+    Inherits all fields from HoroscopeRequest and adds transit_date.
+    """
+    transit_date: str = Field(..., description="Date for the transit calculation (YYYY-MM-DD format)")
     
     @validator('transit_date')
     def validate_transit_date(cls, v):
         try:
-            datetime.strptime(v, "%Y-%m-%d")
+            # Parse the date to validate format
+            parsed_date = datetime.strptime(v, "%Y-%m-%d")
+            
+            # Ensure the date is not in the future
+            if parsed_date.date() > datetime.now().date():
+                logger.warning(f"Transit date {v} is in the future")
+                
             return v
         except ValueError:
             raise ValueError("transit_date must be in YYYY-MM-DD format") 
