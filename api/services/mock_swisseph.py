@@ -123,6 +123,10 @@ def get_ayanamsa_ut(jd: float) -> float:
     # Mock implementation - returns a constant value for testing
     return 23.85
 
+def get_ayanamsa(jd: float) -> float:
+    """Alias for get_ayanamsa_ut for compatibility with tests."""
+    return get_ayanamsa_ut(jd)
+
 def julday(year: int, month: int, day: int, hour: float = 0.0) -> float:
     """Calculate Julian day from date and time"""
     # Simple implementation for testing
