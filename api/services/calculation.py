@@ -26,6 +26,7 @@ from pathlib import Path
 from api.constants.zodiac import Sign, SIGN_NAMES
 from api.constants.planets import Planet, PLANET_NAMES
 from api.constants.nakshatras import NAKSHATRA_NAMES
+from constants.zodiac_signs import ZODIAC_SIGNS
 import requests
 
 # Configure logging
